@@ -15,7 +15,7 @@ class ProteinLigandComplexDataModule(LightningDataModule):
         val_batch_size=None,
         shuffle=True,
         overfit_item=False,
-        num_workers=8,
+        num_workers=16,  # Increased from 8 for faster loading
     ) -> None:
         super().__init__()
         self.predict_dataset = None

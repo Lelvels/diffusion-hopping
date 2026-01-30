@@ -3,18 +3,24 @@ import os
 from pathlib import Path
 
 import torch
+import pandas as pd
 
 from _util import get_datamodule
 from diffusion_hopping.analysis.evaluate import Evaluator
 from diffusion_hopping.model import DiffusionHoppingModel
 from diffusion_hopping.data.featurization import ProteinLigandSimpleFeaturization
 from diffusion_hopping.data.filter import QEDThresholdFilter
+from diffusion_hopping.data.transform import ChainSelectionTransform
 from diffusion_hopping.model.enum import Architecture, Parametrization, SamplingMode
 from diffusion_hopping.util import disable_obabel_and_rdkit_logging
+from pathlib import PosixPath
 
 torch.serialization.add_safe_globals([
     Architecture, Parametrization, SamplingMode,
     ProteinLigandSimpleFeaturization, QEDThresholdFilter,
+    ChainSelectionTransform, PosixPath,
+    pd.DataFrame,
+    pd.core.internals.managers.BlockManager,
 ])
 
 

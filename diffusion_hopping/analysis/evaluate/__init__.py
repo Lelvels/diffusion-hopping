@@ -243,8 +243,11 @@ class Evaluator(object):
 
     def calculate_qvina_scores(self):
         print("Calculating QVina scores...")
+        # Increase parallelization for faster QVina scoring
         scores = thread_map(
-            lambda iterrows: qvina_score(iterrows[1]), list(self._output.iterrows())
+            lambda iterrows: qvina_score(iterrows[1]), 
+            list(self._output.iterrows()),
+            max_workers=32,  # Increased parallelization
         )
         self._output["QVina"] = scores
         if "QVina" not in self._metric_columns:
@@ -267,7 +270,8 @@ class Evaluator(object):
         else:
             func = self._generate_molecule
         if multi_threading:
-            results = thread_map(func, list(loader), desc="Sampling molecules")
+            # Increased parallelization for faster sampling
+            results = thread_map(func, list(loader), desc="Sampling molecules", max_workers=16)
             for result in results:
                 results_list.extend(result)
         else:
@@ -307,7 +311,7 @@ class Evaluator(object):
         torch.save((self._output, self._mode), path)
 
     def from_tensor(self, path):
-        self._output, self._mode = torch.load(path)
+        self._output, self._mode = torch.load(path, weights_only=False)
 
     def print_summary_statistics(self):
         print(self.get_summary_string())

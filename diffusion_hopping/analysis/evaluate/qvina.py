@@ -27,27 +27,41 @@ def _prepare_protein(protein_path) -> Path:
     protein_pdbqt = f"{protein_path.stem}.pdbqt"
     protein_pdbqt = protein_folder / protein_pdbqt
 
+    # Use meeko instead of MGLTools
+    # -p flag writes PDBQT output
     commands = [
-        'eval "$(conda shell.zsh hook)"',
-        "conda activate mgltools",
         f"cd {protein_folder}",
-        f"prepare_receptor4.py -r {protein_name} -o {protein_pdbqt.name}",
+        f"mk_prepare_receptor.py -i {protein_name} -o {protein_path.stem} -p",
     ]
     _run_commands(commands)
     return protein_pdbqt
 
 
 def _prepare_ligand(ligand_path) -> Path:
+    from rdkit import Chem
+    
     ligand_folder = ligand_path.parent.resolve()
     ligand_name = ligand_path.name
     ligand_pdbqt = f"{ligand_path.stem}.pdbqt"
     ligand_pdbqt = ligand_folder / ligand_pdbqt
 
+    # meeko's mk_prepare_ligand doesn't support PDB, so convert to SDF first
+    ligand_sdf = ligand_folder / f"{ligand_path.stem}.sdf"
+    
+    # Convert PDB to SDF using RDKit and add explicit hydrogens
+    mol = Chem.MolFromPDBFile(str(ligand_path), removeHs=False)
+    if mol is not None:
+        # Add explicit hydrogens (required by meeko)
+        mol = Chem.AddHs(mol, addCoords=True)
+        Chem.MolToMolFile(mol, str(ligand_sdf))
+    else:
+        # If RDKit fails, just copy the PDB and hope meeko can handle it
+        ligand_sdf = ligand_path
+    
+    # Use meeko instead of MGLTools
     commands = [
-        'eval "$(conda shell.zsh hook)"',
-        "conda activate mgltools",
         f"cd {ligand_folder}",
-        f"prepare_ligand4.py -l {ligand_name} -o {ligand_pdbqt.name}",
+        f"mk_prepare_ligand.py -i {ligand_sdf.name} -o {ligand_pdbqt.name}",
     ]
     _run_commands(commands)
     return ligand_pdbqt
