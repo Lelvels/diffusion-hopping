@@ -21,9 +21,9 @@ from diffusion_hopping.model.enum import Architecture, Parametrization, Sampling
 
 def parse_args():
     args = argparse.ArgumentParser(
-        prog="generate_scaffolds.py",
+        prog="generate_custom.py",
         description="Generate scaffolds from input molecule and protein",
-        epilog="Example: python generate_scaffolds.py --input_molecule input_molecule.sdf --input_protein input_protein.pdb --output output_folder",
+        epilog="Example: python generate_custom.py --input_molecule input_molecule.sdf --input_protein input_protein.pdb --output output_folder --checkpoint_path ...",
     )
     args.add_argument(
         "--input_molecule", type=str, help="Input molecule", required=True
@@ -37,6 +37,13 @@ def parse_args():
         type=str,
         default=".",
         help="Output folder path",
+    )
+
+    args.add_argument(
+        "--checkpoint_path",
+        type=str,
+        required=True,
+        help="Path to the model checkpoint",
     )
 
     # optional argument for number of samples
@@ -59,7 +66,7 @@ def resolve_args(args):
         and input_mol_path.suffix != ".mol2"
         and input_mol_path.suffix != ".pdb"
     ):
-        raise ValueError(f"{input_mol_path} must be an sdf or mol2 file")
+        raise ValueError(f"{input_mol_path} must be an sdf or mol2 or pdb file")
     input_protein_path = Path(args.input_protein)
     if not input_protein_path.exists():
         raise ValueError(f"{input_protein_path} does not exist")
@@ -72,32 +79,37 @@ def resolve_args(args):
     num_samples = args.num_samples
     if num_samples < 1:
         raise ValueError(f"num_samples must be >= 1, got {num_samples}")
-    return input_mol_path, input_protein_path, output_folder_path, num_samples
+    
+    checkpoint_path = Path(args.checkpoint_path)
+    if not checkpoint_path.exists():
+        raise ValueError(f"{checkpoint_path} does not exist")
+
+    return input_mol_path, input_protein_path, output_folder_path, num_samples, checkpoint_path
 
 
 def main():
     args = parse_args()
-    input_mol_path, input_protein_path, output_folder_path, num_samples = resolve_args(
+    input_mol_path, input_protein_path, output_folder_path, num_samples, checkpoint_path = resolve_args(
         args
     )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    checkpoint_path = Path("checkpoints") / "gvp_conditional.ckpt"
-    with torch.serialization.safe_globals(
-        [
-            Parametrization,
-            Architecture,
-            SamplingMode,
-            ProteinLigandSimpleFeaturization,
-            ChainSelectionTransform,
-            PosixPath,
-            QEDThresholdFilter,
-        ]
-    ):
-        model = DiffusionHoppingModel.load_from_checkpoint(
-            checkpoint_path, map_location=device
-        ).to(device)
+    # Add safe globals
+    torch.serialization.add_safe_globals([
+        Parametrization,
+        Architecture,
+        SamplingMode,
+        ProteinLigandSimpleFeaturization,
+        ChainSelectionTransform,
+        PosixPath,
+        QEDThresholdFilter,
+    ])
+
+    print(f"Loading checkpoint from: {checkpoint_path}")
+    model = DiffusionHoppingModel.load_from_checkpoint(
+        checkpoint_path, map_location=device, weights_only=False
+    ).to(device)
 
     model.eval()
     model.freeze()
@@ -107,14 +119,19 @@ def main():
     )
     protein_transform = Compose([ObabelTransform(), ReduceTransform()])
 
-    protein, ligand = Protein(protein_transform(input_protein_path)), Ligand(
-        ligand_transform_sdf(input_mol_path)
-    )
+    print("Processing input files...")
+    protein = Protein(protein_transform(input_protein_path))
+    ligand = Ligand(ligand_transform_sdf(input_mol_path))
+    
     pl_complex = ProteinLigandComplex(protein, ligand, identifier="complex")
+    
+    # We need to set up the featurization with correct parameters
+    # Assuming standard parameters from training
     featurization = ProteinLigandSimpleFeaturization(
         c_alpha_only=True, cutoff=8.0, mode="residue"
     )
 
+    print(f"Generating {num_samples} samples...")
     batch = Batch.from_data_list([featurization(pl_complex)] * num_samples).to( #ty:ignore
         model.device
     )
@@ -126,10 +143,15 @@ def main():
     molecules: list[Chem.Mol] = molecule_builder(final_output)
 
     # save mol to sdf file
+    print(f"Saving to {output_folder_path}...")
+    saved_count = 0
     for i, mol in enumerate(molecules):
-        path = output_folder_path / f"output_{i}.sdf"
-        Chem.MolToMolFile(mol, str(path))
-
+        if mol is not None:
+            path = output_folder_path / f"output_{i}.sdf"
+            Chem.MolToMolFile(mol, str(path))
+            saved_count += 1
+    
+    print(f"Saved {saved_count} valid molecules out of {num_samples} generated.")
 
 if __name__ == "__main__":
     main()

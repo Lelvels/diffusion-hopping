@@ -15,6 +15,7 @@ class ProteinLigandComplexDataModule(LightningDataModule):
         val_batch_size=None,
         shuffle=True,
         overfit_item=False,
+        num_workers=8,
     ) -> None:
         super().__init__()
         self.predict_dataset = None
@@ -26,6 +27,7 @@ class ProteinLigandComplexDataModule(LightningDataModule):
         self.val_batch_size = val_batch_size if val_batch_size else test_batch_size
         self.shuffle = shuffle
         self.overfit_item = overfit_item
+        self.num_workers = num_workers
 
     def setup(self, stage: str) -> None:
         if stage == "fit":
@@ -38,9 +40,8 @@ class ProteinLigandComplexDataModule(LightningDataModule):
         else:
             raise ValueError(f"Unknown stage: {stage}")
 
-    @staticmethod
-    def dataloader(dataset: Dataset, **kwargs) -> DataLoader:
-        return DataLoader(dataset, **kwargs, num_workers=0)
+    def dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
+        return DataLoader(dataset, **kwargs, num_workers=self.num_workers)
 
     @abstractmethod
     def dataset_from_split(self, split: str) -> Dataset:

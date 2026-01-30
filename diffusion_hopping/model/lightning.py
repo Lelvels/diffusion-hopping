@@ -198,7 +198,6 @@ class DiffusionHoppingModel(pl.LightningModule):
     def configure_gradient_clipping(
         self,
         optimizer: optim.Optimizer,
-        optimizer_idx: int,
         gradient_clip_val: Optional[Union[int, float]] = None,
         gradient_clip_algorithm: Optional[str] = None,
     ) -> None:

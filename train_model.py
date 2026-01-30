@@ -22,6 +22,27 @@ def str_to_bool(v):
 
 
 def train(config, accelerator="gpu" if torch.cuda.is_available() else None, devices=1):
+    # Print all training parameters
+    print("\n" + "="*80)
+    print("TRAINING CONFIGURATION")
+    print("="*80)
+    print(f"Architecture:        {config.architecture}")
+    print(f"Dataset:             {config.dataset_name}")
+    print(f"Seed:                {config.seed}")
+    print(f"Batch size:          {config.batch_size}")
+    print(f"Number of steps:     {config.num_steps}")
+    print(f"Learning rate:       {config.lr}")
+    print(f"Diffusion steps (T): {config.T}")
+    print(f"Number of layers:    {config.num_layers}")
+    print(f"Hidden features:     {config.hidden_features}")
+    print(f"Joint features:      {config.joint_features}")
+    print(f"Edge cutoff:         {config.edge_cutoff}")
+    print(f"Attention:           {config.attention}")
+    print(f"Condition on FG:     {config.condition_on_fg}")
+    print(f"Accelerator:         {accelerator}")
+    print(f"Devices:             {devices}")
+    print("="*80 + "\n")
+    
     run = wandb.init(project="diffusion_hopping", config=config)
     pl.seed_everything(config.seed)
 
@@ -51,7 +72,7 @@ def train(config, accelerator="gpu" if torch.cuda.is_available() else None, devi
     callbacks = get_callbacks()
     trainer = pl.Trainer(
         max_steps=config.num_steps,
-        accelerator=accelerator,
+        accelerator=accelerator, 
         devices=devices,
         num_sanity_val_steps=0,
         logger=wandb_logger,
@@ -67,7 +88,7 @@ def parse_args():
         dataset_name="pdbbind_filtered",
         condition_on_fg=False,
         num_steps=10000,
-        batch_size=32,
+        batch_size=64,
         T=500,
         lr=1e-4,
         num_layers=6,

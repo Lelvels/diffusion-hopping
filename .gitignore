@@ -5,6 +5,12 @@
 /wandb/
 .vscode/
 /artifacts/
+data/
+results/
+checkpoints/
+lightning_logs/
+__pycache__/
+tmp_scatter/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

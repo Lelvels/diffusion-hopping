@@ -1,10 +1,18 @@
 import sys
 from abc import abstractmethod
-from pathlib import Path
+from pathlib import Path, PosixPath
 from typing import Callable, List, Optional, Tuple, Union
+
+from rdkit.Chem.rdchem import Mol
 
 import torch
 from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.data.storage import (
+    BaseStorage,
+    EdgeStorage,
+    GlobalStorage,
+    NodeStorage,
+)
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
@@ -26,7 +34,10 @@ class ProteinLigandDataset(InMemoryDataset):
         self.split = split
         super().__init__(root, transform, pre_transform, pre_filter, log=log)
         split_file = Path(self.processed_dir) / f"{split}.pt"
-        self.data, self.slices = torch.load(split_file)
+        with torch.serialization.safe_globals(
+            [BaseStorage, EdgeStorage, GlobalStorage, NodeStorage, Mol, PosixPath]
+        ):
+            self.data, self.slices = torch.load(split_file)
 
         self.provider = None
         self.processed_complexes: Optional[ProcessedComplexStorage] = None
