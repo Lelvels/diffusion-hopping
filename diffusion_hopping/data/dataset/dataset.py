@@ -26,7 +26,7 @@ class ProteinLigandDataset(InMemoryDataset):
         self.split = split
         super().__init__(root, transform, pre_transform, pre_filter, log=log)
         split_file = Path(self.processed_dir) / f"{split}.pt"
-        self.data, self.slices = torch.load(split_file)
+        self.data, self.slices = torch.load(split_file, weights_only=False)
 
         self.provider = None
         self.processed_complexes: Optional[ProcessedComplexStorage] = None

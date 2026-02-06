@@ -62,7 +62,7 @@ def evaluate_molecules(evaluator, output_path, mode="all"):
     ):
         print("Running ground truth evaluation...")
         evaluator.from_tensor(output_path / "molecules_ground_truth.pt")
-        evaluator.evaluate(transform_for_qvina=False)
+        evaluator.evaluate(transform_for_qvina=False, scorer='gnina', output_format='sdf')
         evaluator.to_html(output_path / "results_ground_truth.html")
         evaluator.to_tensor(output_path / "results_ground_truth.pt")
         evaluator.print_summary_statistics()
@@ -71,7 +71,7 @@ def evaluate_molecules(evaluator, output_path, mode="all"):
     if mode == "ligand_generation" or mode == "all":
         print("Running ligand generation evaluation...")
         evaluator.from_tensor(output_path / "molecules_ligand_generation.pt")
-        evaluator.evaluate(transform_for_qvina=True)
+        evaluator.evaluate(transform_for_qvina=True, scorer='gnina', output_format='sdf')
         evaluator.to_html(output_path / "results_ligand_generation.html")
         evaluator.to_tensor(output_path / "results_ligand_generation.pt")
         evaluator.print_summary_statistics()
@@ -80,7 +80,7 @@ def evaluate_molecules(evaluator, output_path, mode="all"):
     if mode == "inpaint_generation" or (mode == "all" and is_repainting_compatible):
         print("Running inpaint generation evaluation...")
         evaluator.from_tensor(output_path / "molecules_inpaint_generation.pt")
-        evaluator.evaluate(transform_for_qvina=True)
+        evaluator.evaluate(transform_for_qvina=True, scorer='gnina', output_format='sdf')
         evaluator.to_html(output_path / "results_inpaint_generation.html")
         evaluator.to_tensor(output_path / "results_inpaint_generation.pt")
         evaluator.print_summary_statistics()

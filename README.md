@@ -30,9 +30,10 @@ The conda environment can be found in `environment.yml`. To install the environm
 conda env create -f environment.yml
 ```
 
-The code furthermore assumes that `reduce` and `qvina2.1` are installed and available in the `PATH`.
 
-The QVina binary can be found on [https://qvina.github.io](https://qvina.github.io).  
+The code furthermore assumes that `reduce` and `gnina` are installed and available in the `PATH`.
+
+Gnina can be built from source: [https://github.com/gnina/gnina](https://github.com/gnina/gnina).  
 `reduce` can be installed from its GitHub repository [https://github.com/rlabduke/reduce](https://github.com/rlabduke/reduce).
 
 ### Optional Environment for evaluation
@@ -42,6 +43,21 @@ To conduct the evaluation, a second environment is needed to preprocess the file
 ```bash
 conda create -n mgltools -c bioconda mgltools
 ```
+
+### Building Gnina
+
+If you have gnina cloned locally, build it with:
+
+```bash
+cd /path/to/gnina
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+# Add to PATH
+export PATH=$PATH:/path/to/gnina/build
+```
+
+Alternatively, if gnina is not in your PATH, the code will attempt to find it at `/mnt/SSD3/cong_nguyen/Code/pharmacy_code/gnina/build/gnina`.
 
 ## Usage
 
@@ -127,7 +143,7 @@ The evaluation scripts assume the presence of the environment variable `WANDB_PR
 For example
     
 ```bash
-export WANDB_PROJECT=[wandbusername]/diffusion_hopping
+export WANDB_PROJECT=levels1912/diffusion_hopping
 ```
 
 To evaluate a single model, run

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 import torch
+import torch.serialization
 from rdkit import Chem
 from torch_geometric.data import Batch
 from torch_geometric.transforms import Compose
@@ -11,6 +12,10 @@ from diffusion_hopping.data import Protein, Ligand, ProteinLigandComplex
 from diffusion_hopping.data.featurization import ProteinLigandSimpleFeaturization
 from diffusion_hopping.data.transform import ObabelTransform, ReduceTransform
 from diffusion_hopping.model import DiffusionHoppingModel
+from diffusion_hopping.model.enum import Parametrization, Architecture, SamplingMode
+
+# Add safe globals for PyTorch 2.6+ checkpoint loading
+torch.serialization.add_safe_globals([Parametrization, Architecture, SamplingMode])
 
 
 def parse_args():
@@ -79,7 +84,7 @@ def main():
 
     checkpoint_path = Path("checkpoints") / "gvp_conditional.ckpt"
     model = DiffusionHoppingModel.load_from_checkpoint(
-        checkpoint_path, map_location=device
+        checkpoint_path, map_location=device, weights_only=False
     ).to(device)
 
     model.eval()

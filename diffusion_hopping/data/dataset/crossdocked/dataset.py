@@ -1,14 +1,23 @@
 import os
 import random
+import tarfile
 from pathlib import Path
 from typing import Callable, List, Optional
 
 import torch
-from torch_geometric.data import extract_tar
 
 from diffusion_hopping.data.dataset.crossdocked.provider import CrossDockedProvider
 from diffusion_hopping.data.dataset.dataset import ProteinLigandDataset
 from diffusion_hopping.data.util import slugify
+
+
+def extract_tar(path, folder):
+    """
+    Extract tar file compatible with Python 3.10.
+    PyTorch Geometric's extract_tar uses filter='data' which requires Python 3.12+.
+    """
+    with tarfile.open(path, 'r') as tar:
+        tar.extractall(folder)
 
 
 class CrossDockedDataset(ProteinLigandDataset):

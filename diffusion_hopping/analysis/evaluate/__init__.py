@@ -16,6 +16,8 @@ from tqdm.contrib.concurrent import thread_map
 
 from diffusion_hopping.analysis.build import MoleculeBuilder
 from diffusion_hopping.analysis.evaluate.qvina import qvina_score
+from diffusion_hopping.analysis.evaluate.gnina import gnina_score
+from diffusion_hopping.analysis.evaluate.vina_meeko import vina_meeko_score
 from diffusion_hopping.analysis.evaluate.util import (
     _image_with_highlighted_atoms,
     _to_smiles,
@@ -101,12 +103,27 @@ class Evaluator(object):
         self._mode = "ground_truth"
         self._use_ground_truth_molecules(limit_samples=limit_samples)
 
-    def evaluate(self, transform_for_qvina=True):
+    def evaluate(self, transform_for_qvina=True, scorer='gnina', output_format='sdf'):
+        """
+        Evaluate generated molecules.
+        
+        Args:
+            transform_for_qvina: Whether to apply transforms (UFF, largest fragment)
+            scorer: Scoring method to use ('gnina' or 'qvina')
+            output_format: Format to save molecules ('sdf' or 'pdb')
+        """
         self.enrich_molecule_output()
         self.add_metrics()
         self.store_pockets()
-        self.store_molecules(transform=transform_for_qvina)
-        self.calculate_qvina_scores()
+        self.store_molecules(transform=transform_for_qvina, output_format=output_format)
+        if scorer == 'gnina':
+            self.calculate_gnina_scores()
+        elif scorer == 'qvina':
+            self.calculate_qvina_scores()
+        elif scorer == 'vina_meeko':
+            self.calculate_vina_meeko_scores()
+        else:
+            raise ValueError(f"Unknown scorer: {scorer}. Use 'gnina', 'qvina', or 'vina_meeko'")
 
     def _prepare_dataframe(self, molecules_per_pocket):
         test_loader = self.data_module.test_dataloader()
@@ -205,13 +222,24 @@ class Evaluator(object):
         ]
         return 1 - np.mean(tanimoto_similarities)
 
-    def store_molecules(self, transform=False):
+    def store_molecules(self, transform=False, output_format='sdf'):
+        """
+        Store molecules to disk.
+        
+        Args:
+            transform: Whether to apply transforms (UFF, largest fragment)
+            output_format: Format to save molecules ('sdf' or 'pdb')
+        """
         print("Storing molecules...")
         store_path = self._path / "data"
+        
+        # Determine file extension based on format
+        file_ext = f".{output_format}"
+        
         self._output["molecule_path"] = self._output.apply(
             lambda row: store_path
             / row["identifier"]
-            / f"sample_{row['sample_num']}.pdb"
+            / f"sample_{row['sample_num']}{file_ext}"
             if row["molecule"] is not None
             else None,
             axis=1,
@@ -219,16 +247,30 @@ class Evaluator(object):
         for i, row in tqdm(list(self._output.iterrows())):
             if row["molecule"] is None:
                 continue
-            self._store_molecule(row["molecule"], row["molecule_path"], transform)
+            self._store_molecule(row["molecule"], row["molecule_path"], transform, output_format)
 
-    def _store_molecule(self, mol, path, transform=False):
+    def _store_molecule(self, mol, path, transform=False, output_format='sdf'):
+        """
+        Store a single molecule to disk.
+        
+        Args:
+            mol: RDKit molecule object
+            path: Path to save the molecule
+            transform: Whether to apply transforms
+            output_format: Format to save ('sdf' or 'pdb')
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
         if transform:
             mol = self.transforms(mol)
-        Chem.MolToPDBFile(
-            mol,
-            str(path),
-        )
+        
+        if output_format == 'sdf':
+            writer = Chem.SDWriter(str(path))
+            writer.write(mol)
+            writer.close()
+        elif output_format == 'pdb':
+            Chem.MolToPDBFile(mol, str(path))
+        else:
+            raise ValueError(f"Unknown output format: {output_format}. Use 'sdf' or 'pdb'")
 
     def store_pockets(self):
         print("Storing pockets...")
@@ -249,6 +291,24 @@ class Evaluator(object):
         self._output["QVina"] = scores
         if "QVina" not in self._metric_columns:
             self._metric_columns.append("QVina")
+
+    def calculate_gnina_scores(self):
+        print("Calculating Gnina scores...")
+        scores = thread_map(
+            lambda iterrows: gnina_score(iterrows[1]), list(self._output.iterrows())
+        )
+        self._output["Gnina"] = scores
+        if "Gnina" not in self._metric_columns:
+            self._metric_columns.append("Gnina")
+
+    def calculate_vina_meeko_scores(self):
+        print("Calculating Vina Meeko scores...")
+        scores = thread_map(
+            lambda iterrows: vina_meeko_score(iterrows[1]), list(self._output.iterrows())
+        )
+        self._output["VinaMeeko"] = scores
+        if "VinaMeeko" not in self._metric_columns:
+            self._metric_columns.append("VinaMeeko")
 
     def _sample_molecules(
         self,
@@ -307,7 +367,7 @@ class Evaluator(object):
         torch.save((self._output, self._mode), path)
 
     def from_tensor(self, path):
-        self._output, self._mode = torch.load(path)
+        self._output, self._mode = torch.load(path, weights_only=False)
 
     def print_summary_statistics(self):
         print(self.get_summary_string())
@@ -365,7 +425,9 @@ class Evaluator(object):
     ):
         output = self._output[self._output["identifier"] == identifier]
         output = output[output["sample_num"].isin(sample_nums)]
-        output = output.nsmallest(n, "QVina")
+        # Use Gnina score if available, otherwise fall back to QVina
+        score_column = "Gnina" if "Gnina" in output.columns else "QVina"
+        output = output.nsmallest(n, score_column)
 
         output_path = self._path / "samples" / identifier
         output_path.mkdir(parents=True, exist_ok=True)

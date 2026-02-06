@@ -1,8 +1,6 @@
 import tempfile
 from pathlib import Path
-
 from openbabel import openbabel
-
 
 class ObabelTransform:
     def __init__(self, from_format="pdb", to_format="pdb") -> None:
@@ -10,6 +8,9 @@ class ObabelTransform:
         self.obConversion = openbabel.OBConversion()
         self.to_format = to_format
         self.obConversion.SetInAndOutFormats(from_format, to_format)
+        
+        # Suppress OpenBabel warnings (only show errors)
+        openbabel.obErrorLog.SetOutputLevel(openbabel.obError)
 
     def __call__(self, path: Path) -> Path:
         mol = openbabel.OBMol()

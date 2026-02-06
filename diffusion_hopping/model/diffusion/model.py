@@ -1,13 +1,54 @@
 import warnings
 
 import torch
-import torch_scatter
 from torch import nn as nn
 from torch.nn import functional as F
 from torch_geometric.data import Data as DataBatch
 from tqdm import tqdm
 
 from diffusion_hopping.model import util as util
+
+
+def scatter_mean(src, index, dim=0, dim_size=None):
+    """
+    Replacement for torch_scatter.scatter_mean using native PyTorch operations.
+    """
+    if dim_size is None:
+        dim_size = int(index.max()) + 1
+    
+    out_shape = list(src.shape)
+    out_shape[dim] = dim_size
+    
+    # Expand index to match src shape
+    index_shape = [1] * src.ndim
+    index_shape[dim] = src.shape[dim]
+    index_expanded = index.view(index_shape).expand_as(src)
+    
+    out = torch.zeros(out_shape, dtype=src.dtype, device=src.device)
+    out = out.scatter_reduce(dim, index_expanded, src, reduce='mean', include_self=False)
+    
+    return out
+
+
+def scatter_add(src, index, dim=0, dim_size=None):
+    """
+    Replacement for torch_scatter.scatter_add using native PyTorch operations.
+    """
+    if dim_size is None:
+        dim_size = int(index.max()) + 1
+    
+    out_shape = list(src.shape)
+    out_shape[dim] = dim_size
+    
+    # Expand index to match src shape
+    index_shape = [1] * src.ndim
+    index_shape[dim] = src.shape[dim]
+    index_expanded = index.view(index_shape).expand_as(src)
+    
+    out = torch.zeros(out_shape, dtype=src.dtype, device=src.device)
+    out = out.scatter_reduce(dim, index_expanded, src, reduce='sum', include_self=False)
+    
+    return out
 from diffusion_hopping.model.diffusion.schedules import PolynomialBetaSchedule
 from diffusion_hopping.model.enum import Parametrization, SamplingMode
 
@@ -86,7 +127,7 @@ class DiffusionModel(nn.Module):
         if mask is not None:
             pos = pos[mask]
             batch = batch[mask]
-        mean = torch_scatter.scatter_mean(
+        mean = scatter_mean(
             pos,
             batch,
             dim=0,
@@ -255,7 +296,7 @@ class DiffusionModel(nn.Module):
         device = x_0["ligand"].x.device
 
         mask = self.get_mask(x_0)
-        mean = torch_scatter.scatter_mean(
+        mean = scatter_mean(
             x_0["ligand"].pos[mask],
             x_0["ligand"].batch[mask],
             dim=0,
@@ -343,7 +384,7 @@ class DiffusionModel(nn.Module):
         x_t["ligand"].pos[inpaint_mask] = x_t_unknown["ligand"].pos[inpaint_mask]
 
         num_inpainted = torch.clip(
-            torch_scatter.scatter_add(
+            scatter_add(
                 inpaint_mask.long(),
                 x_t["ligand"].batch,
                 dim=0,
@@ -354,7 +395,7 @@ class DiffusionModel(nn.Module):
 
         # Moving the inpainted nodes to ensure a centre of mass free system without moving the nodes given.
         offset = (
-            torch_scatter.scatter_add(
+            scatter_add(
                 x_t["ligand"].pos,
                 x_t["ligand"].batch,
                 dim=0,
@@ -365,7 +406,7 @@ class DiffusionModel(nn.Module):
 
         x_t["ligand"].pos[inpaint_mask] -= offset[x_t["ligand"].batch[inpaint_mask]]
 
-        mean_post_adjustment = torch_scatter.scatter_mean(
+        mean_post_adjustment = scatter_mean(
             x_t["ligand"].pos,
             x_t["ligand"].batch,
             dim=0,
@@ -385,7 +426,7 @@ class DiffusionModel(nn.Module):
         if not self.get_mask(x_0).all():
             raise ValueError("To use inpaint, model has to be trained without masking")
 
-        mean = torch_scatter.scatter_mean(
+        mean = scatter_mean(
             x_0["ligand"].pos,
             x_0["ligand"].batch,
             dim=0,
