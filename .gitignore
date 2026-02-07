@@ -137,3 +137,5 @@ dmypy.json
 .pyre/
 evaluation_local/
 *.code-workspace
+checkpoints/
+tests_data/
