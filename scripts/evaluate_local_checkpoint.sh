@@ -4,6 +4,7 @@
 # Usage: ./evaluate_local_checkpoint.sh [checkpoint_name] [optional_arguments]
 
 set -e  # Exit on error
+cd "$(dirname "$0")/.."  # Change to project root
 
 # Colors for output
 RED='\033[0;31m'
@@ -126,19 +127,12 @@ else
     print_message "$YELLOW" "⚠ No GPU detected, will use CPU (slower)"
 fi
 
-# Check if gnina is available
-if command -v gnina &> /dev/null; then
-    print_message "$GREEN" "✓ gnina found in PATH"
-elif [ -f "/mnt/SSD3/cong_nguyen/Code/pharmacy_code/gnina/build/bin/gnina" ]; then
-    print_message "$GREEN" "✓ gnina found at default location"
-    # Add to PATH for this session
-    export PATH="/mnt/SSD3/cong_nguyen/Code/pharmacy_code/gnina/build/bin:$PATH"
-    print_message "$GREEN" "✓ Added gnina to PATH"
+# Check if AutoDock-GPU is available
+if command -v autodock_gpu_64wi &> /dev/null; then
+    print_message "$GREEN" "✓ AutoDock-GPU found in PATH"
 else
-    print_message "$RED" "✗ gnina not found!"
-    print_message "$YELLOW" "Please ensure gnina is installed and in PATH"
-    print_message "$YELLOW" "Expected location: /mnt/SSD3/cong_nguyen/Code/pharmacy_code/gnina/build/bin/gnina"
-    exit 1
+    print_message "$YELLOW" "⚠ AutoDock-GPU not found in PATH"
+    print_message "$YELLOW" "Make sure AutoDock-GPU module is loaded if running on HPC"
 fi
 
 echo ""

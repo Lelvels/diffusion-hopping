@@ -1,27 +1,25 @@
-
 # DiffHopp: A Graph Diffusion Model for Novel Drug Design via Scaffold Hopping
-
 
 ![Diffusion process](img/diffusion.gif)
 
-Official implementation of "DiffHopp: A Graph Diffusion Model for Novel Drug Design via Scaffold Hopping". 
+Official implementation of "DiffHopp: A Graph Diffusion Model for Novel Drug Design via Scaffold Hopping".
 
 [![arXiv](https://img.shields.io/badge/arXiv-2308.07416-B31B1B.svg)](https://arxiv.org/abs/2308.07416)
 
 ![Approach](img/approach.png)
 
-
 ## Overview
 
 The majority of the code can be found in the module `diffusion_hopping`, which is broken into three parts:
 
-1. `data` contains the preprocessing pipeline, dataset implementations and necessary abstractions  
+1. `data` contains the preprocessing pipeline, dataset implementations and necessary abstractions
 2. `model` contains the diffusion model as well as the two estimators, EGNN and GVP-based.
-3.  `analysis` contains metrics and evaluation code as well as the necessary postprocessing.
+3. `analysis` contains metrics and evaluation code as well as the necessary postprocessing.
 
 At the root level, the repository contains a set of driver scripts that can be used to create datasets, start and resume training runs and to evaluate resulting models.
 
 It should be noted that the codebase is significantly overengineered as it had to fulfill certain requirements as part of a dissertation.
+
 ## Installation
 
 The conda environment can be found in `environment.yml`. To install the environment, run
@@ -30,11 +28,10 @@ The conda environment can be found in `environment.yml`. To install the environm
 conda env create -f environment.yml
 ```
 
+The code furthermore assumes that `reduce` and `AutoDock-GPU` are installed and available in the `PATH`.
 
-The code furthermore assumes that `reduce` and `gnina` are installed and available in the `PATH`.
-
-Gnina can be built from source: [https://github.com/gnina/gnina](https://github.com/gnina/gnina).  
 `reduce` can be installed from its GitHub repository [https://github.com/rlabduke/reduce](https://github.com/rlabduke/reduce).
+AutoDock-GPU can be installed from [https://github.com/ccsb-scripps/AutoDock-GPU](https://github.com/ccsb-scripps/AutoDock-GPU) or loaded as a module on HPC systems.
 
 ### Optional Environment for evaluation
 
@@ -44,24 +41,14 @@ To conduct the evaluation, a second environment is needed to preprocess the file
 conda create -n mgltools -c bioconda mgltools
 ```
 
-### Building Gnina
+## Autodock-GPU
 
-If you have gnina cloned locally, build it with:
-
-```bash
-cd /path/to/gnina
-mkdir -p build && cd build
-cmake ..
-make -j$(nproc)
-# Add to PATH
-export PATH=$PATH:/path/to/gnina/build
-```
-
-Alternatively, if gnina is not in your PATH, the code will attempt to find it at `/mnt/SSD3/cong_nguyen/Code/pharmacy_code/gnina/build/gnina`.
+- We use Autodock-GPU to calculate the data.
 
 ## Usage
 
 ### Scaffold Hopping
+
 To use DiffHopp to generate novel molecules, follow these steps:
 
 First, activate the environment and ensure that your current working directory is the root of the repository.
@@ -72,13 +59,17 @@ pwd # should be the root of the repository
 ```
 
 Then, provide your protein pocket as `.pdb` file and reference molecule either as `.sdf` or `.mol2` file. Now, to obtain 10 samples, run
+
 ```bash
 python generate_scaffolds.py --input_molecule [/path/to/ligand.mol2] --input_protein [/path/to/protein.pdb] --num_samples 10 --output [output_folder]
 ```
+
 The script is able to handle both `.sdf` and `.mol2` files as input molecules. The output will be stored in the specified output folder.
 It is easy to modify in case one would like to use a different input or output format.
+
 ### Model Checkpoints
-The trained model checkpoints for all models trained can be found in the `checkpoints` directory. 
+
+The trained model checkpoints for all models trained can be found in the `checkpoints` directory.
 The naming conventions in the paper and the code differ slightly. DiffHopp is referred to as `gvp_conditional` and DiffHopp-EGNN as `egnn_conditional` in the code.
 The models for inpainting are named `gvp_unconditional` and `egnn_unconditional` respectively to represent the fact that they are not conditioned on a reference molecule's functional group during training.
 
@@ -86,12 +77,16 @@ All the checkpoints were trained on a C-alpha representation of a filtered pdbbi
 Due to compute constraints, all experiments were conducted on `pdbbind_filtered`.
 
 ## Reproducing the results of the paper
+
 ### Metrics reported in the paper
-The metrics reported in the paper were created using the provided model checkpoints. 
+
+The metrics reported in the paper were created using the provided model checkpoints.
+
 ### Dataset Creation
 
 #### PDBbind
-The PDBbind dataset can be downloaded from [http://www.pdbbind.org.cn/](http://www.pdbbind.org.cn/). The dataset used in the paper is the 2018 version, as core and other. 
+
+The PDBbind dataset can be downloaded from [http://www.pdbbind.org.cn/](http://www.pdbbind.org.cn/). The dataset used in the paper is the 2018 version, as core and other.
 The dataset should be extracted into `data/pdbbind_filtered/raw/`, so that the two folders `refined-set` and `v2020-other-PL` exist.
 
 To obtain the preprocessed PDBbind dataset as used to produce the results, run
@@ -101,19 +96,22 @@ python create_dataset.py pdbbind_filtered
 ```
 
 Note that it would also be possible to work with other datasets, the codebase should support an unfiltered version of PDBbind as well as the full atom representation. To create these datasets, run
+
 ```bash
 python create_dataset.py pdbbind[_filtered][_full] 
 ```
 
 #### CrossDocked
+
 The CrossDocked dataset is also supported but was not used to create the published results. To train using the dataset,
-download the raw CrossDocked data from Pocket2Mol: [https://github.com/pengxingang/Pocket2Mol/tree/main/data](https://github.com/pengxingang/Pocket2Mol/tree/main/data). 
+download the raw CrossDocked data from Pocket2Mol: [https://github.com/pengxingang/Pocket2Mol/tree/main/data](https://github.com/pengxingang/Pocket2Mol/tree/main/data).
 
 Then, run `python create_dataset.py crossdocked[_full]`
 
 The script will instruct you where to put the relevant files. After following the instructions, run the command again to preprocess the dataset. It will be stored in `data/crossdocked[_full]`.
 
 ### Training
+
 The training assumes that `wandb` is installed and that a wandb account is set up. To start a training run, execute
 
 ```bash
@@ -138,10 +136,11 @@ where `run_id` is the id of the run to resume and `artifact_id` is the id of the
 While some care was taken when writing the training code to make it reproducable, the authors do not expect retraining runs to lead to exactly the same weights as the training process was reseeded everytime the training was resumed from preemption. The weights of the trained models are provided in `checkpoints` and can be used to reproduce the results. These represent the best checkpoints of a hyperparameter sweep with the respective sweep_configs as detailed below.
 
 ### Evaluation
+
 The evaluation scripts assume the presence of the environment variable `WANDB_PROJECT` which should be set to the name of the wandb project to use.
 
 For example
-    
+
 ```bash
 export WANDB_PROJECT=levels1912/diffusion_hopping
 ```
@@ -151,7 +150,8 @@ To evaluate a single model, run
 ```bash
 python evaluate_model.py [run_id] [dataset_name] --molecules_per_pocket 10
 ```
-where `run_id` is the id of the run to evaluate and `dataset_name` is the name of the dataset to evaluate on. The results will be stored in `evaluation`. 
+
+where `run_id` is the id of the run to evaluate and `dataset_name` is the name of the dataset to evaluate on. The results will be stored in `evaluation`.
 
 Further configuration options can be found by running
 
@@ -164,6 +164,7 @@ To evaluate a sweep, run
 ```bash
 python evaluate_sweep.py [sweep_id] [dataset_name] --molecules_per_pocket 10
 ```
+
 where `sweep_id` is the id of the sweep to evaluate and `dataset_name` is the name of the dataset to evaluate on. The script will automatically fetch the best model from the sweep and evaluate it. The results will be stored in `evaluation`.
 
 ### Recreating the hyperparameter searches conducted
@@ -177,17 +178,18 @@ wandb sweep sweep_configs/[sweep_config]
 where `sweep_config` is the name of the sweep config to use. The sweep will be logged using `wandb`. The results can be found in the sweep dashboard.
 
 It should be noted that the search assumes the existence of a script `train.sh` that trains a model. If you want to run the training locally, this script would simply be:
-    
+
 ```bash
 #!/bin/bash
 python train_model.py "$@"
 ```
 
 ## License
+
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-
 ## Citation
+
 If you use this code in your research, please cite our paper:
 
 ```

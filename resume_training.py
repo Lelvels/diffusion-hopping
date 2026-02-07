@@ -28,7 +28,7 @@ def resume_training(
     checkpoint = wandb_logger.experiment.use_artifact(artifact_id, type="model")
     checkpoint_path = Path(checkpoint.download()) / "model.ckpt"
 
-    model = DiffusionHoppingModel.load_from_checkpoint(checkpoint_path)
+    model = DiffusionHoppingModel.load_from_checkpoint(checkpoint_path, weights_only=False)
     data_module = get_datamodule(dataset_name, batch_size=batch_size // devices)
     model.setup_metrics(data_module.get_train_smiles())
     wandb_logger.watch(model)

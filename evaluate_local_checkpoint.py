@@ -138,7 +138,7 @@ def setup_model_and_data_module(checkpoint_path: Path, dataset_name: str, device
     
     print(f"\nLoading model to device: {device}")
     model = DiffusionHoppingModel.load_from_checkpoint(
-        checkpoint_path, map_location=device
+        checkpoint_path, map_location=device, weights_only=False
     ).to(device)
     print(f"✓ Model loaded successfully")
 
@@ -256,9 +256,9 @@ def main():
     parser.add_argument(
         "--scorer",
         type=str,
-        help="Scoring method: gnina, qvina, vina_meeko, or autodock_gpu",
-        default="gnina",
-        choices=["gnina", "qvina", "vina_meeko", "autodock_gpu"],
+        help="Scoring method: autodock_gpu",
+        default="autodock_gpu",
+        choices=["autodock_gpu"],
     )
     args = parser.parse_args()
 

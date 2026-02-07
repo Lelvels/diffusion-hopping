@@ -22,7 +22,7 @@ def setup_model_and_data_module(
         print("Checkpoint already downloaded")
     checkpoint_path = Path(checkpoint_folder) / "model.ckpt"
     model = DiffusionHoppingModel.load_from_checkpoint(
-        checkpoint_path, map_location=device
+        checkpoint_path, map_location=device, weights_only=False
     ).to(device)
 
     data_module = get_datamodule(dataset_name, batch_size=32)

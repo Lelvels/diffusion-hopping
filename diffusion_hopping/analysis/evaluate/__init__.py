@@ -15,9 +15,9 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
 from diffusion_hopping.analysis.build import MoleculeBuilder
-from diffusion_hopping.analysis.evaluate.qvina import qvina_score
-from diffusion_hopping.analysis.evaluate.gnina import gnina_score
-from diffusion_hopping.analysis.evaluate.vina_meeko import vina_meeko_score
+# from diffusion_hopping.analysis.evaluate.qvina import qvina_score
+# from diffusion_hopping.analysis.evaluate.gnina import gnina_score
+# from diffusion_hopping.analysis.evaluate.vina_meeko import vina_meeko_score
 from diffusion_hopping.analysis.evaluate.autodock_gpu import autodock_gpu_score
 from diffusion_hopping.analysis.evaluate.util import (
     _image_with_highlighted_atoms,
@@ -117,13 +117,13 @@ class Evaluator(object):
         self.add_metrics()
         self.store_pockets()
         self.store_molecules(transform=transform_for_qvina, output_format=output_format)
-        if scorer == 'gnina':
-            self.calculate_gnina_scores()
-        elif scorer == 'qvina':
-            self.calculate_qvina_scores()
-        elif scorer == 'vina_meeko':
-            self.calculate_vina_meeko_scores()
-        elif scorer == 'autodock_gpu':
+        # if scorer == 'gnina':
+        #     self.calculate_gnina_scores()
+        # elif scorer == 'qvina':
+        #     self.calculate_qvina_scores()
+        # elif scorer == 'vina_meeko':
+        #     self.calculate_vina_meeko_scores()
+        if scorer == 'autodock_gpu':
             self.calculate_autodock_gpu_scores()
         else:
             raise ValueError(f"Unknown scorer: {scorer}. Use 'gnina', 'qvina', 'vina_meeko', or 'autodock_gpu'")
@@ -286,32 +286,32 @@ class Evaluator(object):
             row["pocket_path"].parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(pocket_path, str(row["pocket_path"]))
 
-    def calculate_qvina_scores(self):
-        print("Calculating QVina scores...")
-        scores = thread_map(
-            lambda iterrows: qvina_score(iterrows[1]), list(self._output.iterrows())
-        )
-        self._output["QVina"] = scores
-        if "QVina" not in self._metric_columns:
-            self._metric_columns.append("QVina")
+    # def calculate_qvina_scores(self):
+    #     print("Calculating QVina scores...")
+    #     scores = thread_map(
+    #         lambda iterrows: qvina_score(iterrows[1]), list(self._output.iterrows())
+    #     )
+    #     self._output["QVina"] = scores
+    #     if "QVina" not in self._metric_columns:
+    #         self._metric_columns.append("QVina")
 
-    def calculate_gnina_scores(self):
-        print("Calculating Gnina scores...")
-        scores = thread_map(
-            lambda iterrows: gnina_score(iterrows[1]), list(self._output.iterrows())
-        )
-        self._output["Gnina"] = scores
-        if "Gnina" not in self._metric_columns:
-            self._metric_columns.append("Gnina")
+    # def calculate_gnina_scores(self):
+    #     print("Calculating Gnina scores...")
+    #     scores = thread_map(
+    #         lambda iterrows: gnina_score(iterrows[1]), list(self._output.iterrows())
+    #     )
+    #     self._output["Gnina"] = scores
+    #     if "Gnina" not in self._metric_columns:
+    #         self._metric_columns.append("Gnina")
 
-    def calculate_vina_meeko_scores(self):
-        print("Calculating Vina Meeko scores...")
-        scores = thread_map(
-            lambda iterrows: vina_meeko_score(iterrows[1]), list(self._output.iterrows())
-        )
-        self._output["VinaMeeko"] = scores
-        if "VinaMeeko" not in self._metric_columns:
-            self._metric_columns.append("VinaMeeko")
+    # def calculate_vina_meeko_scores(self):
+    #     print("Calculating Vina Meeko scores...")
+    #     scores = thread_map(
+    #         lambda iterrows: vina_meeko_score(iterrows[1]), list(self._output.iterrows())
+    #     )
+    #     self._output["VinaMeeko"] = scores
+    #     if "VinaMeeko" not in self._metric_columns:
+    #         self._metric_columns.append("VinaMeeko")
 
     def calculate_autodock_gpu_scores(self):
         print("Calculating AutoDock-GPU scores...")
