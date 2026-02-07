@@ -18,6 +18,7 @@ from diffusion_hopping.analysis.build import MoleculeBuilder
 from diffusion_hopping.analysis.evaluate.qvina import qvina_score
 from diffusion_hopping.analysis.evaluate.gnina import gnina_score
 from diffusion_hopping.analysis.evaluate.vina_meeko import vina_meeko_score
+from diffusion_hopping.analysis.evaluate.autodock_gpu import autodock_gpu_score
 from diffusion_hopping.analysis.evaluate.util import (
     _image_with_highlighted_atoms,
     _to_smiles,
@@ -109,7 +110,7 @@ class Evaluator(object):
         
         Args:
             transform_for_qvina: Whether to apply transforms (UFF, largest fragment)
-            scorer: Scoring method to use ('gnina' or 'qvina')
+            scorer: Scoring method to use ('gnina', 'qvina', 'vina_meeko', or 'autodock_gpu')
             output_format: Format to save molecules ('sdf' or 'pdb')
         """
         self.enrich_molecule_output()
@@ -122,8 +123,10 @@ class Evaluator(object):
             self.calculate_qvina_scores()
         elif scorer == 'vina_meeko':
             self.calculate_vina_meeko_scores()
+        elif scorer == 'autodock_gpu':
+            self.calculate_autodock_gpu_scores()
         else:
-            raise ValueError(f"Unknown scorer: {scorer}. Use 'gnina', 'qvina', or 'vina_meeko'")
+            raise ValueError(f"Unknown scorer: {scorer}. Use 'gnina', 'qvina', 'vina_meeko', or 'autodock_gpu'")
 
     def _prepare_dataframe(self, molecules_per_pocket):
         test_loader = self.data_module.test_dataloader()
@@ -309,6 +312,15 @@ class Evaluator(object):
         self._output["VinaMeeko"] = scores
         if "VinaMeeko" not in self._metric_columns:
             self._metric_columns.append("VinaMeeko")
+
+    def calculate_autodock_gpu_scores(self):
+        print("Calculating AutoDock-GPU scores...")
+        scores = thread_map(
+            lambda iterrows: autodock_gpu_score(iterrows[1]), list(self._output.iterrows())
+        )
+        self._output["AutoDockGPU"] = scores
+        if "AutoDockGPU" not in self._metric_columns:
+            self._metric_columns.append("AutoDockGPU")
 
     def _sample_molecules(
         self,

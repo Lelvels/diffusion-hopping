@@ -256,9 +256,9 @@ def main():
     parser.add_argument(
         "--scorer",
         type=str,
-        help="Scoring method: gnina, qvina, or vina_meeko",
+        help="Scoring method: gnina, qvina, vina_meeko, or autodock_gpu",
         default="gnina",
-        choices=["gnina", "qvina", "vina_meeko"],
+        choices=["gnina", "qvina", "vina_meeko", "autodock_gpu"],
     )
     args = parser.parse_args()
 
