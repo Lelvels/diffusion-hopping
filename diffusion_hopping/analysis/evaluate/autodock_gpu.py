@@ -226,6 +226,8 @@ def _run_autogrid(gpf_path, protein_pdbqt_dir):
         "autogrid4",
         "/usr/local/bin/autogrid4",
         str(Path.home() / "MGLTools-1.5.7/bin/autogrid4"),
+        "/net/scratch/hscra/plgrid/plgkietho/maidung/my_software/bin/autogrid4",
+        str(Path.home() / "my_software/bin/autogrid4"),
     ]
     
     for path in possible_paths:
