@@ -1,5 +1,6 @@
 import functools
 import itertools
+import os
 import shutil
 from pathlib import Path
 from typing import List
@@ -281,8 +282,31 @@ class Evaluator(object):
         self._output["pocket_path"] = self._output.apply(
             lambda row: store_path / row["identifier"] / "pocket.pdb", axis=1
         )
+        
+        # Get DATA_ROOT for resolving paths
+        from config import DATA_ROOT
+        
         for i, row in tqdm(list(self._output.iterrows())):
-            pocket_path = row["test_set_item"]["protein"].path
+            pocket_path = Path(row["test_set_item"]["protein"].path)
+            
+            # If path doesn't exist, try to resolve it relative to DATA_ROOT
+            if not pocket_path.exists():
+                # Extract the relative path from 'data/' onwards
+                # e.g., 'data/pdbbind_filtered/processed/...' -> 'pdbbind_filtered/processed/...'
+                path_parts = pocket_path.parts
+                if 'data' in path_parts:
+                    data_idx = path_parts.index('data')
+                    relative_path = Path(*path_parts[data_idx + 1:])
+                    pocket_path = DATA_ROOT / relative_path
+                
+                # If still doesn't exist, raise error with helpful message
+                if not pocket_path.exists():
+                    raise FileNotFoundError(
+                        f"Could not find pocket file: {pocket_path}\n"
+                        f"Original path: {row['test_set_item']['protein'].path}\n"
+                        f"DATA_ROOT: {DATA_ROOT}"
+                    )
+            
             row["pocket_path"].parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(pocket_path, str(row["pocket_path"]))
 
