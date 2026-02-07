@@ -22,7 +22,26 @@ def autodock_gpu_score(row, size=20.0, nrun=1, exhaustiveness=8, autodock_gpu_pa
         if row["molecule"] is None:
             return None
         
-        protein_path = row["test_set_item"]["protein"].path
+        protein_path = Path(row["test_set_item"]["protein"].path)
+        
+        # If path doesn't exist, try to resolve it relative to DATA_ROOT
+        if not protein_path.exists():
+            from config import DATA_ROOT
+            # Extract the relative path from 'data/' onwards
+            path_parts = protein_path.parts
+            if 'data' in path_parts:
+                data_idx = path_parts.index('data')
+                relative_path = Path(*path_parts[data_idx + 1:])
+                protein_path = DATA_ROOT / relative_path
+                
+                # If still doesn't exist, raise error with helpful message
+                if not protein_path.exists():
+                    raise FileNotFoundError(
+                        f"Could not find protein file: {protein_path}\n"
+                        f"Original path: {row['test_set_item']['protein'].path}\n"
+                        f"DATA_ROOT: {DATA_ROOT}"
+                    )
+        
         ligand_path = row["molecule_path"]
         
         return _calculate_autodock_gpu_score(
