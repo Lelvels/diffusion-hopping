@@ -22,6 +22,9 @@ export PATH=$DUNG_HOME/my_software/bin:$PATH
 export LD_LIBRARY_PATH=$DUNG_HOME/my_software/lib:$LD_LIBRARY_PATH
 export BABEL_DATADIR=$DUNG_HOME/my_software/share/openbabel/3.1.1
 
+# Data root for diffusion-hopping datasets
+export DIFFUSION_HOPPING_DATA_ROOT="$DUNG_HOME/Code/pharma_res/data"
+
 # --- 4. Synchronized Installation ---
 # Note: Using --user and --force-reinstall to override broken system packages
 pip install torch --no-cache-dir --force-reinstall --user \

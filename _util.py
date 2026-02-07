@@ -1,6 +1,7 @@
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
+from config import DATA_ROOT
 from diffusion_hopping.data.dataset import CrossDockedDataModule, PDBBindDataModule
 from diffusion_hopping.data.featurization import ProteinLigandSimpleFeaturization
 from diffusion_hopping.data.filter import QEDThresholdFilter
@@ -57,7 +58,7 @@ def get_datamodule(dataset_name: str, batch_size: int = 32):
         raise ValueError("Unknown dataset name")
 
     dataset = dataset_constructor(
-        f"data/{dataset_name}/",
+        str(DATA_ROOT / dataset_name),
         pre_transform=pre_transform,
         pre_filter=pre_filter,
         batch_size=batch_size,
