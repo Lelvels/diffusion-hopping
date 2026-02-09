@@ -1,14 +1,15 @@
-import argparse
-from types import SimpleNamespace
-
-import pytorch_lightning as pl
-import torch
-
+import os
 import wandb
+import torch
+import argparse
+import pytorch_lightning as pl
+from pathlib import Path
+from types import SimpleNamespace
+from dotenv import load_dotenv
+
 from _util import get_callbacks, get_datamodule, get_logger, get_model
 from diffusion_hopping.model.enum import Architecture
 from diffusion_hopping.util import disable_obabel_and_rdkit_logging
-
 
 def str_to_bool(v):
     if isinstance(v, bool):
@@ -20,11 +21,36 @@ def str_to_bool(v):
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
-
 def train(config, accelerator="gpu" if torch.cuda.is_available() else None, devices=1):
-    run = wandb.init(project="diffusion_hopping", config=config)
-    pl.seed_everything(config.seed)
+    load_dotenv()  # Load environment variables from .env file
+    
+    # Load W&B configuration from environment variables
+    WANDB_API_KEY = os.getenv("WANDB_API_KEY")
+    WANDB_PROJECT = os.getenv("WANDB_PROJECT")
+    wandb_dir = os.getenv("WANDB_DIR")
+    if WANDB_API_KEY is None or WANDB_PROJECT is None:
+        raise ValueError(
+            "WANDB_API_KEY and WANDB_PROJECT must be set in environment variables or .env file"
+        )
+    
+    if WANDB_API_KEY:
+        wandb.login(key=WANDB_API_KEY)
+        print(f"✓ Logged in to Weights & Biases")
+    else:
+        print("WARNING: WANDB_API_KEY not set. W&B logging will be disabled.")
 
+    # Initialize W&B run
+    try:
+        run = wandb.init(project=WANDB_PROJECT, dir=wandb_dir, config=config)
+        print(f"✓ Initialized W&B run: {run.name}")
+        print(f"  Project: {WANDB_PROJECT}")
+        print(f"  Save directory: {wandb_dir}")
+    except Exception as e:
+        print(f"WARNING: Failed to initialize W&B run: {e}")
+        run = None
+    
+    # Set random seed for reproducibility
+    pl.seed_everything(config.seed)
     data_module = get_datamodule(
         config.dataset_name, batch_size=config.batch_size // devices
     )
@@ -48,7 +74,16 @@ def train(config, accelerator="gpu" if torch.cuda.is_available() else None, devi
     wandb_logger = get_logger(run)
     wandb_logger.watch(model)
 
-    callbacks = get_callbacks()
+    # Create checkpoint directory
+    checkpoint_dir = Path(wandb_dir or ".") / "checkpoints" / run.name if run else Path("checkpoints")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\n{'='*60}")
+    print(f"CHECKPOINT LOCATION")
+    print(f"{'='*60}")
+    print(f"Checkpoints will be saved to: {checkpoint_dir.absolute()}")
+    print(f"{'='*60}\n")
+
+    callbacks = get_callbacks(checkpoint_dir=str(checkpoint_dir), save_every_n_steps=config.save_every_n_steps)
     trainer = pl.Trainer(
         max_steps=config.num_steps,
         accelerator=accelerator,
@@ -58,7 +93,16 @@ def train(config, accelerator="gpu" if torch.cuda.is_available() else None, devi
         callbacks=callbacks,
     )
     trainer.fit(model, data_module)
-
+    
+    # Print checkpoint location after training
+    print(f"\n{'='*60}")
+    print(f"TRAINING COMPLETE!")
+    print(f"{'='*60}")
+    print(f"Model checkpoints saved to:")
+    print(f"  {checkpoint_dir.absolute()}")
+    print(f"\nTo find your checkpoints:")
+    print(f"  ls {checkpoint_dir.absolute()}")
+    print(f"{'='*60}\n")
 
 def parse_args():
     default_config = SimpleNamespace(
@@ -74,6 +118,7 @@ def parse_args():
         joint_features=128,
         hidden_features=256,
         edge_cutoff=(None, 5, 5),
+        save_every_n_steps=25000,
     )
 
     parser = argparse.ArgumentParser(
@@ -159,18 +204,23 @@ def parse_args():
         help="Use attention",
         default=True,
     )
+    parser.add_argument(
+        "--save_every_n_steps",
+        type=int,
+        help="Save checkpoint every N training steps",
+        default=default_config.save_every_n_steps,
+    )
 
     config = parser.parse_args()
     config.edge_cutoff = eval(config.edge_cutoff)
 
     return config
 
-
 def main():
     disable_obabel_and_rdkit_logging()
+    load_dotenv()
     config = parse_args()
     train(config)
-
 
 if __name__ == "__main__":
     main()

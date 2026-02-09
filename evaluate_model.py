@@ -3,13 +3,13 @@ import os
 from pathlib import Path
 
 import torch
+from dotenv import load_dotenv
 
 import wandb
 from _util import get_datamodule
 from diffusion_hopping.analysis.evaluate import Evaluator
 from diffusion_hopping.model import DiffusionHoppingModel
 from diffusion_hopping.util import disable_obabel_and_rdkit_logging
-
 
 def generate_molecules(
     evaluator: Evaluator,
@@ -51,7 +51,6 @@ def generate_molecules(
         )
         evaluator.to_tensor(output_path / "molecules_inpaint_generation.pt")
 
-
 def evaluate_molecules(evaluator, output_path, mode="all"):
     is_repainting_compatible = evaluator.is_model_repainting_compatible()
     output_str = f"Output path: {output_path}\n"
@@ -90,7 +89,6 @@ def evaluate_molecules(evaluator, output_path, mode="all"):
 
     output_path.joinpath("summary.txt").write_text(output_str)
 
-
 def setup_model_and_data_module(artifact_id, dataset_name, device="cpu"):
     api = wandb.Api()
     checkpoint = api.artifact(artifact_id, type="model")
@@ -103,7 +101,6 @@ def setup_model_and_data_module(artifact_id, dataset_name, device="cpu"):
 
     data_module = get_datamodule(dataset_name, batch_size=32)
     return model, data_module
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -215,6 +212,6 @@ def main():
     if do_evaluation:
         evaluate_molecules(evaluator, output_path, mode=mode)
 
-
 if __name__ == "__main__":
+    load_dotenv()
     main()

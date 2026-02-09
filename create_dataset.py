@@ -2,12 +2,14 @@ import argparse
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from _util import get_datamodule
 from config import DATA_ROOT
 from diffusion_hopping.util import disable_obabel_and_rdkit_logging
 
 if __name__ == "__main__":
     disable_obabel_and_rdkit_logging()
+    load_dotenv()  # Load environment variables from .env file
     parser = argparse.ArgumentParser(
         prog="create_dataset.py",
         description="Create and preprocess dataset with given name",

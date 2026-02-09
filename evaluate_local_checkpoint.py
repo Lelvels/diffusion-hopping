@@ -12,14 +12,15 @@ This script loads models directly from the checkpoints/ directory:
 
 import argparse
 from pathlib import Path
-
+from dotenv import load_dotenv
 import torch
+import wandb
+import os
 
 from _util import get_datamodule
 from diffusion_hopping.analysis.evaluate import Evaluator
 from diffusion_hopping.model import DiffusionHoppingModel
 from diffusion_hopping.util import disable_obabel_and_rdkit_logging
-
 
 def generate_molecules(
     evaluator: Evaluator,
@@ -72,7 +73,6 @@ def generate_molecules(
         evaluator.to_tensor(output_path / "molecules_inpaint_generation.pt")
         print(f"✓ Inpaint generation molecules saved")
 
-
 def evaluate_molecules(evaluator, output_path, mode="all", scorer="gnina"):
     """Evaluate generated molecules."""
     is_repainting_compatible = evaluator.is_model_repainting_compatible()
@@ -123,7 +123,6 @@ def evaluate_molecules(evaluator, output_path, mode="all", scorer="gnina"):
     output_path.joinpath("summary.txt").write_text(output_str)
     print(f"\n✓ Summary saved to: {output_path / 'summary.txt'}")
 
-
 def setup_model_and_data_module(checkpoint_path: Path, dataset_name: str, device="cpu"):
     """Load model and data module from local checkpoint file."""
     print(f"\n{'='*60}")
@@ -147,7 +146,6 @@ def setup_model_and_data_module(checkpoint_path: Path, dataset_name: str, device
     print(f"✓ Data module loaded successfully")
     
     return model, data_module
-
 
 def get_checkpoint_path(checkpoint_name: str, checkpoints_dir: Path) -> Path:
     """Get the full path to a checkpoint file."""
@@ -175,8 +173,18 @@ def get_checkpoint_path(checkpoint_name: str, checkpoints_dir: Path) -> Path:
     # If not found, assume it's a filename
     return checkpoints_dir / checkpoint_name
 
-
 def main():
+    load_dotenv()  # Load environment variables from .env file
+    WANDB_API_KEY = os.getenv("WANDB_API_KEY")
+    WANDB_PROJECT = os.getenv("WANDB_PROJECT")
+    
+    # Initialize Weights & Biases
+    if WANDB_API_KEY:
+        wandb.login(key=WANDB_API_KEY)
+        print(f"✓ Logged in to Weights & Biases")
+    else:
+        print("WARNING: WANDB_API_KEY not set. W&B logging will be disabled.")
+    
     parser = argparse.ArgumentParser(
         prog="evaluate_local_checkpoint.py",
         description="Evaluate ligand generation using local checkpoint files",
@@ -300,6 +308,34 @@ def main():
     print(f"Do evaluation: {do_evaluation}")
     print(f"{'='*60}\n")
 
+    # Initialize Weights & Biases project
+    if WANDB_API_KEY and WANDB_PROJECT:
+        try:
+            # Get WANDB_DIR from environment or use output_path
+            wandb_dir = os.getenv("WANDB_DIR", str(output_path))
+            wandb.init(
+                project=WANDB_PROJECT,
+                dir=wandb_dir,
+                config={
+                    "checkpoint": checkpoint_name,
+                    "dataset": dataset_name,
+                    "mode": mode,
+                    "limit_samples": limit_samples,
+                    "molecules_per_pocket": molecules_per_pocket,
+                    "batch_size": batch_size,
+                    "scorer": args.scorer,
+                    "device": device,
+                },
+                tags=["evaluation", checkpoint_name, args.scorer],
+            )
+            print(f"✓ W&B project initialized: {WANDB_PROJECT}")
+            print(f"  Runs will be saved to: {wandb_dir}")
+        except Exception as e:
+            print(f"WARNING: Failed to initialize W&B project: {e}")
+    else:
+        if not WANDB_PROJECT:
+            print("WARNING: WANDB_PROJECT not set. W&B logging will be disabled.")
+
     # Load model and data
     model, data_module = setup_model_and_data_module(
         checkpoint_path, dataset_name, device=device
@@ -331,6 +367,10 @@ def main():
     print(f"{'='*60}")
     print(f"Results saved to: {output_path}")
     print(f"{'='*60}\n")
+    
+    # Finish the W&B run
+    if WANDB_API_KEY and WANDB_PROJECT:
+        wandb.finish()
 
 
 if __name__ == "__main__":

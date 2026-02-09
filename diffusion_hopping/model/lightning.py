@@ -198,7 +198,7 @@ class DiffusionHoppingModel(pl.LightningModule):
     def configure_gradient_clipping(
         self,
         optimizer: optim.Optimizer,
-        optimizer_idx: int,
+        optimizer_idx: int = 0,
         gradient_clip_val: Optional[Union[int, float]] = None,
         gradient_clip_algorithm: Optional[str] = None,
     ) -> None:
@@ -239,7 +239,6 @@ class DiffusionHoppingModel(pl.LightningModule):
         self.log_dict(
             grad_norm_dict, on_step=True, on_epoch=True, prog_bar=False, logger=True
         )
-
 
 def get_grad_norm(
     optimizer: torch.optim.Optimizer, norm_type: float = 2.0

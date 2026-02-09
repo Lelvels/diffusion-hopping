@@ -72,18 +72,27 @@ def get_logger(run, **kwargs):
     return WandbLogger(log_model="all", experiment=run, **kwargs)
 
 
-def get_callbacks():
+def get_callbacks(checkpoint_dir=None, save_every_n_steps=25000):
+    """
+    Get callbacks for training.
+    
+    Args:
+        checkpoint_dir: Directory to save checkpoints. If None, uses default Lightning location.
+        save_every_n_steps: Save checkpoint every N training steps (default: 25000)
+    """
     val_checkpoint = ModelCheckpoint(
+        dirpath=checkpoint_dir,
         filename="epoch={epoch}-step={step}-val_loss={loss/val:.3f}",
         monitor="loss/val",
         mode="min",
         auto_insert_metric_name=False,
     )
     latest_checkpoint = ModelCheckpoint(
+        dirpath=checkpoint_dir,
         filename="latest-{epoch}-{step}",
         monitor="epoch",
         mode="max",
-        every_n_train_steps=25000,
+        every_n_train_steps=save_every_n_steps,
         save_top_k=-1,
     )
     return [val_checkpoint, latest_checkpoint]
