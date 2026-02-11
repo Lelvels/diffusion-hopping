@@ -16,9 +16,6 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
 from diffusion_hopping.analysis.build import MoleculeBuilder
-# from diffusion_hopping.analysis.evaluate.qvina import qvina_score
-# from diffusion_hopping.analysis.evaluate.gnina import gnina_score
-# from diffusion_hopping.analysis.evaluate.vina_meeko import vina_meeko_score
 from diffusion_hopping.analysis.evaluate.autodock_gpu import autodock_gpu_score
 from diffusion_hopping.analysis.evaluate.util import (
     _image_with_highlighted_atoms,
@@ -40,7 +37,6 @@ from diffusion_hopping.analysis.transform import (
     LargestFragmentTransform,
     UniversalForceFieldTransform,
 )
-
 
 class Evaluator(object):
     def __init__(self, path: Path):
@@ -105,29 +101,23 @@ class Evaluator(object):
         self._mode = "ground_truth"
         self._use_ground_truth_molecules(limit_samples=limit_samples)
 
-    def evaluate(self, transform_for_qvina=True, scorer='gnina', output_format='sdf'):
+    def evaluate(self, apply_transform=True, scorer='autodock_gpu', output_format='sdf'):
         """
         Evaluate generated molecules.
         
         Args:
-            transform_for_qvina: Whether to apply transforms (UFF, largest fragment)
-            scorer: Scoring method to use ('gnina', 'qvina', 'vina_meeko', or 'autodock_gpu')
+            apply_transform: Whether to apply transforms (UFF, largest fragment)
+            scorer: Scoring method to use (currently only 'autodock_gpu' is supported)
             output_format: Format to save molecules ('sdf' or 'pdb')
         """
         self.enrich_molecule_output()
         self.add_metrics()
         self.store_pockets()
-        self.store_molecules(transform=transform_for_qvina, output_format=output_format)
-        # if scorer == 'gnina':
-        #     self.calculate_gnina_scores()
-        # elif scorer == 'qvina':
-        #     self.calculate_qvina_scores()
-        # elif scorer == 'vina_meeko':
-        #     self.calculate_vina_meeko_scores()
+        self.store_molecules(transform=apply_transform, output_format=output_format)
         if scorer == 'autodock_gpu':
             self.calculate_autodock_gpu_scores()
         else:
-            raise ValueError(f"Unknown scorer: {scorer}. Use 'gnina', 'qvina', 'vina_meeko', or 'autodock_gpu'")
+            raise ValueError(f"Unknown scorer: {scorer}. Only 'autodock_gpu' is supported.")
 
     def _prepare_dataframe(self, molecules_per_pocket):
         test_loader = self.data_module.test_dataloader()
@@ -310,33 +300,6 @@ class Evaluator(object):
             row["pocket_path"].parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(pocket_path, str(row["pocket_path"]))
 
-    # def calculate_qvina_scores(self):
-    #     print("Calculating QVina scores...")
-    #     scores = thread_map(
-    #         lambda iterrows: qvina_score(iterrows[1]), list(self._output.iterrows())
-    #     )
-    #     self._output["QVina"] = scores
-    #     if "QVina" not in self._metric_columns:
-    #         self._metric_columns.append("QVina")
-
-    # def calculate_gnina_scores(self):
-    #     print("Calculating Gnina scores...")
-    #     scores = thread_map(
-    #         lambda iterrows: gnina_score(iterrows[1]), list(self._output.iterrows())
-    #     )
-    #     self._output["Gnina"] = scores
-    #     if "Gnina" not in self._metric_columns:
-    #         self._metric_columns.append("Gnina")
-
-    # def calculate_vina_meeko_scores(self):
-    #     print("Calculating Vina Meeko scores...")
-    #     scores = thread_map(
-    #         lambda iterrows: vina_meeko_score(iterrows[1]), list(self._output.iterrows())
-    #     )
-    #     self._output["VinaMeeko"] = scores
-    #     if "VinaMeeko" not in self._metric_columns:
-    #         self._metric_columns.append("VinaMeeko")
-
     def calculate_autodock_gpu_scores(self):
         print("Calculating AutoDock-GPU scores...")
         scores = thread_map(
@@ -345,6 +308,24 @@ class Evaluator(object):
         self._output["AutoDockGPU"] = scores
         if "AutoDockGPU" not in self._metric_columns:
             self._metric_columns.append("AutoDockGPU")
+        
+        # Report docking statistics
+        total_scores = len(scores)
+        successful_scores = sum(1 for s in scores if s is not None)
+        failed_scores = total_scores - successful_scores
+        
+        print(f"\nAutoDock-GPU Docking Statistics:")
+        print(f"  Total molecules: {total_scores}")
+        print(f"  Successfully docked: {successful_scores} ({successful_scores/total_scores*100:.1f}%)")
+        print(f"  Failed to dock: {failed_scores} ({failed_scores/total_scores*100:.1f}%)")
+        
+        if successful_scores > 0:
+            valid_scores = [s for s in scores if s is not None]
+            print(f"  Mean score: {sum(valid_scores)/len(valid_scores):.3f} kcal/mol")
+            print(f"  Min score: {min(valid_scores):.3f} kcal/mol")
+        else:
+            print(f"  WARNING: No molecules were successfully docked!")
+        print()
 
     def _sample_molecules(
         self,
@@ -404,6 +385,15 @@ class Evaluator(object):
 
     def from_tensor(self, path):
         self._output, self._mode = torch.load(path, weights_only=False)
+        
+        # Restore metric columns from dataframe (includes AutoDockGPU if it was evaluated)
+        # Find all numeric columns that are likely metrics (exclude identifier, sample_num, etc.)
+        exclude_cols = ['identifier', 'sample_num', 'test_set_item', 'molecule', 'molecule_path', 
+                       'pocket_path', 'SMILES', 'Image', 'SMILES-Image', 'Diversity']
+        for col in self._output.columns:
+            if col not in exclude_cols and col not in self._metric_columns:
+                if pd.api.types.is_numeric_dtype(self._output[col]):
+                    self._metric_columns.append(col)
 
     def print_summary_statistics(self):
         print(self.get_summary_string())
@@ -413,15 +403,33 @@ class Evaluator(object):
         summary_string = f"Summary statistics for mode {self._mode}:\n"
         for metric_name, metric_statistics in summary_statistics.items():
             summary_string += f"{metric_name}: {metric_statistics['mean']:.3f} ± {metric_statistics['std']:.3f}\n"
+        
+        # Add AutoDock-GPU specific statistics if available
+        if "AutoDockGPU" in self._output.columns:
+            autodock_scores = self._output["AutoDockGPU"]
+            total = len(autodock_scores)
+            successful = autodock_scores.notna().sum()
+            failed = total - successful
+            summary_string += f"\nAutoDock-GPU docking: {successful}/{total} successful ({successful/total*100:.1f}%), {failed} failed\n"
+        
         return summary_string
 
     def get_summary_statistics(self):
         summary_statistics = {}
-        for metric_name in self._metric_columns:
-            summary_statistics[metric_name] = {
-                "mean": self._output[metric_name].mean(),
-                "std": self._output[metric_name].std(),
-            }
+        
+        # Get all metric columns to include (from _metric_columns and any scoring columns in dataframe)
+        metric_cols = list(self._metric_columns)
+        
+        # Also include AutoDockGPU if it exists but isn't in _metric_columns
+        if 'AutoDockGPU' in self._output.columns and 'AutoDockGPU' not in metric_cols:
+            metric_cols.append('AutoDockGPU')
+        
+        for metric_name in metric_cols:
+            if metric_name in self._output.columns:
+                summary_statistics[metric_name] = {
+                    "mean": self._output[metric_name].mean(),
+                    "std": self._output[metric_name].std(),
+                }
         return summary_statistics
 
     def _get_conditional_mask(self, row, mark_scaffold=None):
@@ -461,8 +469,9 @@ class Evaluator(object):
     ):
         output = self._output[self._output["identifier"] == identifier]
         output = output[output["sample_num"].isin(sample_nums)]
-        # Use Gnina score if available, otherwise fall back to QVina
-        score_column = "Gnina" if "Gnina" in output.columns else "QVina"
+        score_column = "AutoDockGPU"
+        if score_column not in output.columns:
+            raise ValueError(f"Scoring column '{score_column}' not found. Run evaluation with AutoDock-GPU scoring first.")
         output = output.nsmallest(n, score_column)
 
         output_path = self._path / "samples" / identifier
@@ -475,7 +484,6 @@ class Evaluator(object):
             self._store_molecule(
                 row["molecule"], row["molecule_path"], transform=transform
             )
-            qvina_score(row)
 
         to_html(
             output.drop(columns=["test_set_item"]),

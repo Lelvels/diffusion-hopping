@@ -38,6 +38,11 @@ class DiffusionHoppingModel(pl.LightningModule):
         lr=1e-4,
         clip_grad=False,
         condition_on_fg=False,
+        # Learning rate scheduler parameters
+        use_lr_scheduler=False,
+        lr_scheduler_patience=10,
+        lr_scheduler_factor=0.5,
+        lr_scheduler_min_lr=1e-6,
         # Normalization parameters
         pos_norm=1.0,
         x_norm=1.0,
@@ -88,6 +93,13 @@ class DiffusionHoppingModel(pl.LightningModule):
         self.clip_grad = clip_grad
         if self.clip_grad:
             self.gradient_norm_queue = deque([3000.0], maxlen=50)
+        
+        # Learning rate scheduler configuration
+        self.use_lr_scheduler = use_lr_scheduler
+        self.lr_scheduler_patience = lr_scheduler_patience
+        self.lr_scheduler_factor = lr_scheduler_factor
+        self.lr_scheduler_min_lr = lr_scheduler_min_lr
+        
         self.validation_metrics = None
         self.molecule_builder = MoleculeBuilder(include_invalid=True)
 
@@ -193,6 +205,25 @@ class DiffusionHoppingModel(pl.LightningModule):
         optimizer = optim.AdamW(
             self.parameters(), lr=self.lr, amsgrad=True, weight_decay=1e-12
         )
+        
+        if self.use_lr_scheduler:
+            scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode='min',
+                factor=self.lr_scheduler_factor,
+                patience=self.lr_scheduler_patience,
+                min_lr=self.lr_scheduler_min_lr
+            )
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "monitor": "loss/val",
+                    "interval": "epoch",
+                    "frequency": 1,
+                }
+            }
+        
         return optimizer
 
     def configure_gradient_clipping(

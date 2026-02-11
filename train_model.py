@@ -67,6 +67,10 @@ def train(config, accelerator="gpu" if torch.cuda.is_available() else None, devi
         edge_cutoff=config.edge_cutoff,
         ligand_features=data_module.pre_transform.ligand_features,
         protein_features=data_module.pre_transform.protein_features,
+        use_lr_scheduler=config.use_lr_scheduler,
+        lr_scheduler_patience=config.lr_scheduler_patience,
+        lr_scheduler_factor=config.lr_scheduler_factor,
+        lr_scheduler_min_lr=config.lr_scheduler_min_lr,
     )
 
     model.setup_metrics(data_module.get_train_smiles())
@@ -83,7 +87,7 @@ def train(config, accelerator="gpu" if torch.cuda.is_available() else None, devi
     print(f"Checkpoints will be saved to: {checkpoint_dir.absolute()}")
     print(f"{'='*60}\n")
 
-    callbacks = get_callbacks(checkpoint_dir=str(checkpoint_dir), save_every_n_steps=config.save_every_n_steps)
+    callbacks = get_callbacks(checkpoint_dir=str(checkpoint_dir))
     trainer = pl.Trainer(
         max_steps=config.num_steps,
         accelerator=accelerator,
@@ -110,7 +114,7 @@ def parse_args():
         seed=1,
         dataset_name="pdbbind_filtered",
         condition_on_fg=False,
-        num_steps=10000,
+        num_steps=150000,
         batch_size=32,
         T=500,
         lr=1e-4,
@@ -118,7 +122,10 @@ def parse_args():
         joint_features=128,
         hidden_features=256,
         edge_cutoff=(None, 5, 5),
-        save_every_n_steps=25000,
+        use_lr_scheduler=False,
+        lr_scheduler_patience=10,
+        lr_scheduler_factor=0.5,
+        lr_scheduler_min_lr=1e-6,
     )
 
     parser = argparse.ArgumentParser(
@@ -205,10 +212,28 @@ def parse_args():
         default=True,
     )
     parser.add_argument(
-        "--save_every_n_steps",
+        "--use_lr_scheduler",
+        type=str_to_bool,
+        help="Use ReduceLROnPlateau scheduler",
+        default=default_config.use_lr_scheduler,
+    )
+    parser.add_argument(
+        "--lr_scheduler_patience",
         type=int,
-        help="Save checkpoint every N training steps",
-        default=default_config.save_every_n_steps,
+        help="Number of epochs with no improvement after which learning rate will be reduced",
+        default=default_config.lr_scheduler_patience,
+    )
+    parser.add_argument(
+        "--lr_scheduler_factor",
+        type=float,
+        help="Factor by which the learning rate will be reduced (new_lr = lr * factor)",
+        default=default_config.lr_scheduler_factor,
+    )
+    parser.add_argument(
+        "--lr_scheduler_min_lr",
+        type=float,
+        help="Minimum learning rate",
+        default=default_config.lr_scheduler_min_lr,
     )
 
     config = parser.parse_args()

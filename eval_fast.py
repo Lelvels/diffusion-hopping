@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 """
-Evaluation script for testing the diffusion-hopping model with 500 samples
-using LOCAL checkpoint files (no WandB required).
+Evaluation script for the diffusion-hopping model.
 
-This script loads models directly from the checkpoints/ directory:
-- egnn_conditional.ckpt (DiffHopp-EGNN)
-- egnn_unconditional.ckpt (DiffHopp-EGNN for inpainting)
-- gvp_conditional.ckpt (DiffHopp)
-- gvp_unconditional.ckpt (DiffHopp for inpainting)
+This script loads a model from a checkpoint file and evaluates it on a test dataset.
+You can control generation and evaluation modes, batch size, and other parameters.
+
+Example usage:
+    python eval_diffhopp.py checkpoints/gvp_conditional.ckpt --limit_samples 500
+    python eval_diffhopp.py path/to/my_model.ckpt --dataset pdbbind_filtered --batch_size 16
 """
 
 import argparse
@@ -73,7 +73,7 @@ def generate_molecules(
         evaluator.to_tensor(output_path / "molecules_inpaint_generation.pt")
         print(f"✓ Inpaint generation molecules saved")
 
-def evaluate_molecules(evaluator, output_path, mode="all", scorer="gnina"):
+def evaluate_molecules(evaluator, output_path, mode="all", scorer="autodock_gpu"):
     """Evaluate generated molecules."""
     is_repainting_compatible = evaluator.is_model_repainting_compatible()
     
@@ -91,7 +91,7 @@ def evaluate_molecules(evaluator, output_path, mode="all", scorer="gnina"):
     ):
         print("[1/3] Evaluating ground truth molecules...")
         evaluator.from_tensor(output_path / "molecules_ground_truth.pt")
-        evaluator.evaluate(transform_for_qvina=False, scorer=scorer, output_format='sdf')
+        evaluator.evaluate(apply_transform=False, scorer=scorer, output_format='sdf')
         evaluator.to_html(output_path / "results_ground_truth.html")
         evaluator.to_tensor(output_path / "results_ground_truth.pt")
         evaluator.print_summary_statistics()
@@ -101,7 +101,7 @@ def evaluate_molecules(evaluator, output_path, mode="all", scorer="gnina"):
     if mode == "ligand_generation" or mode == "all":
         print("\n[2/3] Evaluating ligand generation molecules...")
         evaluator.from_tensor(output_path / "molecules_ligand_generation.pt")
-        evaluator.evaluate(transform_for_qvina=True, scorer=scorer, output_format='sdf')
+        evaluator.evaluate(apply_transform=True, scorer=scorer, output_format='sdf')
         evaluator.to_html(output_path / "results_ligand_generation.html")
         evaluator.to_tensor(output_path / "results_ligand_generation.pt")
         evaluator.print_summary_statistics()
@@ -111,7 +111,7 @@ def evaluate_molecules(evaluator, output_path, mode="all", scorer="gnina"):
     if mode == "inpaint_generation" or (mode == "all" and is_repainting_compatible):
         print("\n[3/3] Evaluating inpaint generation molecules...")
         evaluator.from_tensor(output_path / "molecules_inpaint_generation.pt")
-        evaluator.evaluate(transform_for_qvina=True, scorer=scorer, output_format='sdf')
+        evaluator.evaluate(apply_transform=True, scorer=scorer, output_format='sdf')
         evaluator.to_html(output_path / "results_inpaint_generation.html")
         evaluator.to_tensor(output_path / "results_inpaint_generation.pt")
         evaluator.print_summary_statistics()
@@ -142,36 +142,10 @@ def setup_model_and_data_module(checkpoint_path: Path, dataset_name: str, device
     print(f"✓ Model loaded successfully")
 
     print(f"\nLoading dataset: {dataset_name}")
-    data_module = get_datamodule(dataset_name, batch_size=32)
-    print(f"✓ Data module loaded successfully")
+    data_module = get_datamodule(dataset_name, batch_size=32, shuffle=False)
+    print("✓ Data module loaded successfully (shuffle=False for deterministic evaluation)")
     
     return model, data_module
-
-def get_checkpoint_path(checkpoint_name: str, checkpoints_dir: Path) -> Path:
-    """Get the full path to a checkpoint file."""
-    # Map friendly names to checkpoint files
-    checkpoint_map = {
-        "egnn_conditional": "egnn_conditional.ckpt",
-        "egnn_unconditional": "egnn_unconditional.ckpt",
-        "gvp_conditional": "gvp_conditional.ckpt",
-        "gvp_unconditional": "gvp_unconditional.ckpt",
-        # Aliases
-        "egnn": "egnn_conditional.ckpt",
-        "gvp": "gvp_conditional.ckpt",
-        "diffhopp": "gvp_conditional.ckpt",
-        "diffhopp-egnn": "egnn_conditional.ckpt",
-    }
-    
-    # If it's already a .ckpt file, use it directly
-    if checkpoint_name.endswith('.ckpt'):
-        return checkpoints_dir / checkpoint_name
-    
-    # Otherwise, look up in the map
-    if checkpoint_name.lower() in checkpoint_map:
-        return checkpoints_dir / checkpoint_map[checkpoint_name.lower()]
-    
-    # If not found, assume it's a filename
-    return checkpoints_dir / checkpoint_name
 
 def main():
     load_dotenv()  # Load environment variables from .env file
@@ -186,22 +160,16 @@ def main():
         print("WARNING: WANDB_API_KEY not set. W&B logging will be disabled.")
     
     parser = argparse.ArgumentParser(
-        prog="evaluate_local_checkpoint.py",
-        description="Evaluate ligand generation using local checkpoint files",
-        epilog="Example: python evaluate_local_checkpoint.py gvp_conditional --limit_samples 500",
+        prog="eval_diffhopp.py",
+        description="Evaluate ligand generation using a checkpoint file",
+        epilog="Example: python eval_diffhopp.py checkpoints/gvp_conditional.ckpt --limit_samples 500",
     )
     parser.add_argument(
-        "checkpoint",
+        "checkpoint_path",
         type=str,
-        help="Checkpoint name or file (e.g., gvp_conditional, egnn_conditional.ckpt)",
+        help="Path to checkpoint file (e.g., checkpoints/gvp_conditional.ckpt)",
     )
 
-    parser.add_argument(
-        "--checkpoints_dir",
-        type=str,
-        help="Directory containing checkpoint files",
-        default="checkpoints",
-    )
     parser.add_argument(
         "--dataset",
         type=str,
@@ -258,8 +226,8 @@ def main():
     parser.add_argument(
         "--output_dir",
         type=str,
-        help="Output directory for results",
-        default="evaluation_local",
+        help="Output directory for results (default: from EVALUATION_OUTPUT_DIR env or 'evaluation_local')",
+        default=os.getenv("EVALUATION_OUTPUT_DIR", "evaluation_local"),
     )
     parser.add_argument(
         "--scorer",
@@ -279,13 +247,15 @@ def main():
     batch_size = args.batch_size
 
     # Setup paths
-    checkpoints_dir = Path(args.checkpoints_dir)
-    checkpoint_path = get_checkpoint_path(args.checkpoint, checkpoints_dir)
+    checkpoint_path = Path(args.checkpoint_path)
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+    
     checkpoint_name = checkpoint_path.stem  # filename without extension
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dataset_name = args.dataset
-    output_path = Path(args.output_dir) / checkpoint_name / dataset_name / args.scorer
+    output_path = Path(args.output_dir) / checkpoint_name / dataset_name
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Disable logging noise
@@ -371,7 +341,6 @@ def main():
     # Finish the W&B run
     if WANDB_API_KEY and WANDB_PROJECT:
         wandb.finish()
-
 
 if __name__ == "__main__":
     main()

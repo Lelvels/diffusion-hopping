@@ -11,8 +11,8 @@ class CrossDockedDataModule(ProteinLigandComplexDataModule):
         pre_transform=None,
         pre_filter=None,
         batch_size=32,
-        test_batch_size=None,
-        val_batch_size=None,
+        test_batch_size=512,
+        val_batch_size=512,
         shuffle=True,
         overfit_item=False,
     ) -> None:

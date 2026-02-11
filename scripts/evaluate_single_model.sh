@@ -1,22 +1,23 @@
 #!/bin/bash -l
-#SBATCH --job-name=eval_diffhopp_fast
+#SBATCH --job-name=eval_wandb_ckpt
 #SBATCH --account=plgplgalphasyn3-gpu-gh200
 #SBATCH --partition=plgrid-gpu-gh200
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=2
 #SBATCH --mem-per-cpu=4G
 #SBATCH --time=24:00:00
 #SBATCH --gres=gpu:1
-#SBATCH --output="/net/scratch/hscra/plgrid/plgkietho/maidung/Code/pharma_res/results/diff_hopp/logs/eval_diffhopp_fast_%j.log"
-#SBATCH --error="/net/scratch/hscra/plgrid/plgkietho/maidung/Code/pharma_res/results/diff_hopp/logs/eval_diffhopp_fast_%j.err"
+#SBATCH --output="/net/storage/pr3/plgrid/plggsball/plgkietho/maidung/Code/pharma_res/results/diff_hopp/logs/eval/eval_wandb_ckpt_%j.log"
+#SBATCH --error="/net/storage/pr3/plgrid/plggsball/plgkietho/maidung/Code/pharma_res/results/diff_hopp/logs/eval/eval_wandb_ckpt_%j.err"
 
 # 1. Virtual Environment Setup ---
-export DUNG_HOME="/net/scratch/hscra/plgrid/plgkietho/maidung"
+echo "=== STARTING EVALUATION ENVIRONMENT SETUP ==="
+export DUNG_HOME="/net/storage/pr3/plgrid/plggsball/plgkietho/maidung"
 export VENV_PATH="$DUNG_HOME/diffusion_hopping_venv"
 
 # 2. Load Helios-optimized ML environment ---
-bash "$DUNG_HOME/Code/pharma_res/diffusion-hopping/scripts/load_modules.sh"
+sh "$DUNG_HOME/Code/pharma_res/diffusion-hopping/scripts/load_modules.sh"
 
 # 3. Load the modules required for AutoDock-GPU (if not already loaded by load_modules.sh)
 echo "Loading modules..."
@@ -38,11 +39,13 @@ if [[ $? -ne 0 ]]; then
     echo "ERROR: Failed to activate virtual environment at $VENV_PATH" >&2
     exit 1
 fi
+export pybin="/net/software/aarch64/el9/Python/3.11.5-GCCcore-13.2.0/bin/python"
+echo "✓ PYTHONPATH set to: $pybin, fuck default python path!!!"
+echo "Python version: "
+$pybin --version
 
-# 4. Check CUDA availability
-echo ""
 echo "Checking CUDA availability..."
-python3 << 'EOF'
+$pybin << 'EOF'
 import torch
 cuda_available = torch.cuda.is_available()
 cuda_device_count = torch.cuda.device_count() if cuda_available else 0
@@ -68,10 +71,11 @@ cd "$DUNG_HOME/Code/pharma_res/diffusion-hopping"
 # 6. Run the evaluation
 # Ensure python is called from your activated venv (handled by load_modules.sh)
 echo ""
-echo "Starting scripts..."
-python3 evaluate_local_checkpoint.py gvp_conditional \
-    --scorer autodock_gpu \
-    --limit_samples 5 \
-    --molecules_per_pocket 2 \
-    --batch_size 2 \
-    --output_dir "$DUNG_HOME/Code/pharma_res/results/diff_hopp"
+echo "=== DiffHopp WanDB Evaluation Script ==="
+echo ""
+
+# 7. Starting evaluation
+CKPT_ROOT_DIR="/net/storage/pr3/plgrid/plggsball/plgkietho/maidung/Code/pharma_res/results/diff_hopp/wandb/checkpoints"
+AUTHOR_DIR="/net/storage/pr3/plgrid/plggsball/plgkietho/maidung/Code/pharma_res/results/diff_hopp/author_checkpoints"
+$pybin eval_single_model.py "$CKPT_ROOT_DIR/peachy-firebrand-37"
+# $pybin eval_single_model.py "$AUTHOR_DIR/gvp_conditional.ckpt"

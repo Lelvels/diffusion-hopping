@@ -6,20 +6,18 @@ module load GCC/13.2.0
 module load CMake/3.29.3
 module load Boost/1.83.0
 module load SWIG/4.1.1
-module load bzip2/1.0.8
 module load ML-bundle/24.06a
 
 # --- 2. Define Paths & Redirect Cache to Scratch ---
-export DUNG_HOME="/net/scratch/hscra/plgrid/plgkietho/maidung"
+export DUNG_HOME="/net/storage/pr3/plgrid/plggsball/plgkietho/maidung"
 export VENV_PATH="$DUNG_HOME/diffusion_hopping_venv"
-
-mkdir -p "$DUNG_HOME/.pip_cache" "$DUNG_HOME/.tmp"
+mkdir -p "$DUNG_HOME/.pip_cache" "$DUNG_HOME/.tmp" "$DUNG_HOME/.cache/wandb"
 export PIP_CACHE_DIR="$DUNG_HOME/.pip_cache"
 export TMPDIR="$DUNG_HOME/.tmp"
-export PIP_NO_CACHE_DIR=1
-
-# Research Tool Paths (Points to where you compiled autogrid4 and obabel)
-export PATH="$DUNG_HOME/my_software/bin:$PATH"
+export PYTHONUSERBASE="$DUNG_HOME/.local"
+export WANDB_CACHE_DIR="$DUNG_HOME/.cache/wandb"
+unset PIP_NO_CACHE_DIR  # Ensure this is not set to 1
+export PATH="$DUNG_HOME/my_software/bin:$DUNG_HOME/.local/bin:$PATH"
 export LD_LIBRARY_PATH="$DUNG_HOME/my_software/lib:$LD_LIBRARY_PATH"
 export BABEL_DATADIR="$DUNG_HOME/my_software/share/openbabel/3.1.1"
 
@@ -42,7 +40,7 @@ source "$VENV_PATH/bin/activate"
 
 # --- 5. Package Installation ---
 echo "Installing packages individually..."
-pip install --no-cache torch pytorch-lightning torchmetrics torch-geometric --index-url https://download.pytorch.org/whl/cu128 --extra-index-url https://pypi.org/simple
+pip install --no-cache torch torchaudio torchvision pytorch-lightning torchmetrics torch-geometric --index-url https://download.pytorch.org/whl/cu128 --extra-index-url https://pypi.org/simple
 pip install --no-cache numpy pandas scipy networkx tqdm PyYAML click pytest
 pip install --no-cache rdkit meeko biopandas gemmi
 pip install --no-cache wandb sentry-sdk python-dotenv

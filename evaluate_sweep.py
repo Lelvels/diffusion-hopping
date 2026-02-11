@@ -25,7 +25,7 @@ def setup_model_and_data_module(
         checkpoint_path, map_location=device, weights_only=False
     ).to(device)
 
-    data_module = get_datamodule(dataset_name, batch_size=32)
+    data_module = get_datamodule(dataset_name, batch_size=32, shuffle=False)
     return model, data_module
 
 
@@ -112,7 +112,8 @@ def main():
 
     api = wandb.Api()
     sweep = api.sweep(f"{os.environ['WANDB_PROJECT']}/{sweep_id}")
-    output_path = Path("evaluation") / sweep.name / dataset_name
+    output_base = os.getenv("EVALUATION_OUTPUT_DIR", "evaluation")
+    output_path = Path(output_base) / sweep.name / dataset_name
     output_path.mkdir(parents=True, exist_ok=True)
 
     best_run = sweep.best_run()

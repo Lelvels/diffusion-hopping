@@ -61,7 +61,7 @@ def evaluate_molecules(evaluator, output_path, mode="all"):
     ):
         print("Running ground truth evaluation...")
         evaluator.from_tensor(output_path / "molecules_ground_truth.pt")
-        evaluator.evaluate(transform_for_qvina=False, scorer='gnina', output_format='sdf')
+        evaluator.evaluate(apply_transform=False, scorer='autodock_gpu', output_format='sdf')
         evaluator.to_html(output_path / "results_ground_truth.html")
         evaluator.to_tensor(output_path / "results_ground_truth.pt")
         evaluator.print_summary_statistics()
@@ -70,7 +70,7 @@ def evaluate_molecules(evaluator, output_path, mode="all"):
     if mode == "ligand_generation" or mode == "all":
         print("Running ligand generation evaluation...")
         evaluator.from_tensor(output_path / "molecules_ligand_generation.pt")
-        evaluator.evaluate(transform_for_qvina=True, scorer='gnina', output_format='sdf')
+        evaluator.evaluate(apply_transform=True, scorer='autodock_gpu', output_format='sdf')
         evaluator.to_html(output_path / "results_ligand_generation.html")
         evaluator.to_tensor(output_path / "results_ligand_generation.pt")
         evaluator.print_summary_statistics()
@@ -79,7 +79,7 @@ def evaluate_molecules(evaluator, output_path, mode="all"):
     if mode == "inpaint_generation" or (mode == "all" and is_repainting_compatible):
         print("Running inpaint generation evaluation...")
         evaluator.from_tensor(output_path / "molecules_inpaint_generation.pt")
-        evaluator.evaluate(transform_for_qvina=True, scorer='gnina', output_format='sdf')
+        evaluator.evaluate(apply_transform=True, scorer='autodock_gpu', output_format='sdf')
         evaluator.to_html(output_path / "results_inpaint_generation.html")
         evaluator.to_tensor(output_path / "results_inpaint_generation.pt")
         evaluator.print_summary_statistics()
@@ -99,7 +99,7 @@ def setup_model_and_data_module(artifact_id, dataset_name, device="cpu"):
         checkpoint_path, map_location=device, weights_only=False
     ).to(device)
 
-    data_module = get_datamodule(dataset_name, batch_size=32)
+    data_module = get_datamodule(dataset_name, batch_size=32, shuffle=False)
     return model, data_module
 
 def main():
@@ -183,7 +183,8 @@ def main():
     artifact_id = f"{os.environ['WANDB_PROJECT']}/model-{run_id}:best_k"
 
     dataset_name = args.dataset
-    output_path = Path("evaluation") / run_id / dataset_name
+    output_base = os.getenv("EVALUATION_OUTPUT_DIR", "evaluation")
+    output_path = Path(output_base) / run_id / dataset_name
     output_path.mkdir(parents=True, exist_ok=True)
 
     disable_obabel_and_rdkit_logging()

@@ -17,7 +17,7 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "dataset_name", 
+        "dataset_name",
         type=str, 
         help="Name of the dataset (e.g., pdbbind_filtered, crossdocked_filtered)"
     )

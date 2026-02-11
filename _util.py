@@ -16,7 +16,7 @@ def get_data_module_choices():
     return choices
 
 
-def get_datamodule(dataset_name: str, batch_size: int = 32):
+def get_datamodule(dataset_name: str, batch_size: int = 32, shuffle: bool = True):
     if dataset_name not in get_data_module_choices():
         raise ValueError(f"Unknown dataset name {dataset_name}")
     """Create dataset with given name, e.g. crossdocked_filtered or pdbbind_filtered_full"""
@@ -64,6 +64,7 @@ def get_datamodule(dataset_name: str, batch_size: int = 32):
         batch_size=batch_size,
         val_batch_size=32,
         test_batch_size=32,
+        shuffle=shuffle,
     )
     return dataset
 
@@ -72,30 +73,24 @@ def get_logger(run, **kwargs):
     return WandbLogger(log_model="all", experiment=run, **kwargs)
 
 
-def get_callbacks(checkpoint_dir=None, save_every_n_steps=25000):
+def get_callbacks(checkpoint_dir=None):
     """
     Get callbacks for training.
     
     Args:
         checkpoint_dir: Directory to save checkpoints. If None, uses default Lightning location.
-        save_every_n_steps: Save checkpoint every N training steps (default: 25000)
     """
     val_checkpoint = ModelCheckpoint(
         dirpath=checkpoint_dir,
-        filename="epoch={epoch}-step={step}-val_loss={loss/val:.3f}",
+        filename="epoch={epoch}-step_{step}-val_loss_{loss/val:.3f}",
         monitor="loss/val",
         mode="min",
         auto_insert_metric_name=False,
+        enable_version_counter=False,
+        save_last=True,
     )
-    latest_checkpoint = ModelCheckpoint(
-        dirpath=checkpoint_dir,
-        filename="latest-{epoch}-{step}",
-        monitor="epoch",
-        mode="max",
-        every_n_train_steps=save_every_n_steps,
-        save_top_k=-1,
-    )
-    return [val_checkpoint, latest_checkpoint]
+    
+    return [val_checkpoint]
 
 
 def get_model(
@@ -105,11 +100,15 @@ def get_model(
     condition_on_fg=True,
     architecture=Architecture.EGNN,
     lr=1e-4,
-    T=1000,
+    T=500,
     edge_cutoff=(None, 5, 5),
     ligand_features=10,
     protein_features=20,
     attention=False,
+    use_lr_scheduler=False,
+    lr_scheduler_patience=10,
+    lr_scheduler_factor=0.5,
+    lr_scheduler_min_lr=1e-6,
 ):
     return DiffusionHoppingModel(
         T=T,
@@ -126,4 +125,8 @@ def get_model(
         ligand_features=ligand_features,
         protein_features=protein_features,
         attention=attention,
+        use_lr_scheduler=use_lr_scheduler,
+        lr_scheduler_patience=lr_scheduler_patience,
+        lr_scheduler_factor=lr_scheduler_factor,
+        lr_scheduler_min_lr=lr_scheduler_min_lr,
     )

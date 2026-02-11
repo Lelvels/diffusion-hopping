@@ -38,9 +38,12 @@ def _image_with_highlighted_atoms(mol, atoms_to_highlight):
 
 
 def _to_smiles_image(row):
-    if row["SMILES"] is None:
+    smiles = row.get("SMILES") if hasattr(row, "get") else row["SMILES"]
+    if smiles is None or not isinstance(smiles, str) or smiles.strip() == "":
         return None
-    mol = Chem.MolFromSmiles(row["SMILES"])
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
     try:
         # We need this as there is a bug in RDKit that causes the program to crash on some molecules
         return Draw.MolToImage(mol, size=(200, 200))
